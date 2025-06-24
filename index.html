@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DND 跑团管理平台 (纯前端模拟数据版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .tab-button.active {
+            border-color: #4f46e5;
+            color: #4f46e5;
+            background-color: #eef2ff;
+        }
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div id="app" v-cloak class="min-h-screen">
+        <!-- 模拟数据模式提示 -->
+        <div class="fixed top-0 left-0 right-0 bg-yellow-400 text-yellow-900 text-center p-2 text-sm z-50">
+            注意: 当前为纯前端模拟数据模式。所有更改将在刷新页面后重置。
+        </div>
+
+        <!-- 全局消息提示 -->
+        <div v-if="globalMessage" :class="globalMessage.type === 'success' ? 'bg-green-500' : 'bg-red-500'" class="fixed top-10 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg text-white text-center z-40">
+            {{ globalMessage.text }}
+        </div>
+        
+        <!-- 登录/注册界面 -->
+        <div id="auth-view" v-if="!user.loggedIn" class="flex items-center justify-center min-h-screen pt-10">
+            <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold text-center">DND 跑团平台</h2>
+                <div class="flex border-b">
+                    <button @click="authMode = 'login'" :class="{ 'border-indigo-500 text-indigo-600': authMode === 'login' }" class="flex-1 py-2 font-semibold text-gray-500 border-b-2 focus:outline-none">登录</button>
+                    <button @click="authMode = 'register'" :class="{ 'border-indigo-500 text-indigo-600': authMode === 'register' }" class="flex-1 py-2 font-semibold text-gray-500 border-b-2 focus:outline-none">注册</button>
+                </div>
+                <div v-if="authMode === 'login'" class="space-y-4">
+                    <input v-model="credentials.email" @keyup.enter="login" type="email" placeholder="邮箱" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input v-model="credentials.password" @keyup.enter="login" type="password" placeholder="密码" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <button @click="login" class="w-full px-4 py-2 font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">登录</button>
+                </div>
+                <div v-if="authMode === 'register'" class="space-y-4">
+                    <input v-model="credentials.email" @keyup.enter="register" type="email" placeholder="邮箱" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input v-model="credentials.password" @keyup.enter="register" type="password" placeholder="密码" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <button @click="register" class="w-full px-4 py-2 font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">注册</button>
+                </div>
+                 <p v-if="authError" class="text-red-500 text-sm text-center">{{ authError }}</p>
+                 <div class="text-xs text-gray-400 text-center pt-4">
+                     <p>可用的测试账号:</p>
+                     <p>admin@test.com / dm@test.com / player@test.com</p>
+                     <p>密码均为: password123</p>
+                 </div>
+            </div>
+        </div>
+
+        <!-- 主应用界面 -->
+        <div id="main-view" v-if="user.loggedIn" class="p-4 md:p-8 pt-16">
+            <header class="flex flex-wrap justify-between items-center mb-6 gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold">DND 平台</h1>
+                    <p class="text-gray-500">欢迎, {{ user.email }}! 你的用户ID: <code class="bg-gray-200 px-1 rounded">{{ user.uid }}</code></p>
+                    <p class="text-gray-500">你的角色: <span v-for="role in user.roles" :key="role" class="inline-block bg-indigo-100 text-indigo-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded">{{ role.toUpperCase() }}</span></p>
+                </div>
+                <button @click="logout" class="px-4 py-2 font-semibold text-white bg-red-500 rounded-md hover:bg-red-600">退出</button>
+            </header>
+
+            <div class="mb-6 border-b border-gray-200">
+                <nav class="flex space-x-4 -mb-px">
+                    <button v-if="hasPermission('view_admin_panel')" @click="activeTab = 'admin'" :class="{ 'active': activeTab === 'admin' }" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">后台管理</button>
+                    <button v-if="hasPermission('create_entries')" @click="activeTab = 'dm'" :class="{ 'active': activeTab === 'dm' }" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">DM 工作台</button>
+                    <button v-if="hasPermission('edit_own_char_sheet')" @click="activeTab = 'player'" :class="{ 'active': activeTab === 'player' }" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">玩家面板</button>
+                </nav>
+            </div>
+
+            <!-- 内容区域 -->
+            <div class="space-y-8">
+                <!-- 管理员面板 -->
+                <div v-if="activeTab === 'admin' && hasPermission('view_admin_panel')">
+                    <h2 class="text-2xl font-semibold mb-4">后台管理</h2>
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div class="p-6 bg-white rounded-lg shadow">
+                            <h3 class="font-semibold text-lg mb-4">用户管理</h3>
+                            <div class="space-y-3 max-h-96 overflow-y-auto">
+                                <div v-for="u in admin.users" :key="u.uid" class="p-3 border rounded-md flex flex-wrap justify-between items-center gap-2">
+                                    <div>
+                                        <p class="font-medium">{{ u.email }}</p>
+                                        <p class="text-xs text-gray-500">{{ u.uid }}</p>
+                                    </div>
+                                    <div class="flex flex-col items-start">
+                                        <label v-for="role in admin.roles" :key="role.name" class="flex items-center text-sm font-medium">
+                                            <input type="checkbox" :value="role.name" :checked="u.roles && u.roles.includes(role.name)" @change="toggleUserRole(u, role.name, $event.target.checked)" class="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                            {{ role.name }}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-6 bg-white rounded-lg shadow">
+                             <h3 class="font-semibold text-lg mb-4">角色与权限</h3>
+                            <div class="space-y-4">
+                                <div v-for="role in admin.roles" :key="role.id" class="p-3 border rounded-md">
+                                    <h4 class="font-bold">{{ role.name.toUpperCase() }}</h4>
+                                    <div class="mt-2 space-y-1">
+                                        <label v-for="perm in admin.permissions" :key="perm.id" class="flex items-center text-sm">
+                                            <input type="checkbox" :checked="role.permissions.includes(perm.id)" @change="updateRolePermission(role.id, perm.id, $event.target.checked)" class="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                            {{ perm.description }}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DM 面板 -->
+                <div v-if="activeTab === 'dm' && hasPermission('create_entries')">
+                     <h2 class="text-2xl font-semibold mb-4">DM 工作台</h2>
+                     <div class="grid md:grid-cols-3 gap-8">
+                         <div class="md:col-span-2 p-6 bg-white rounded-lg shadow">
+                            <h3 class="font-semibold text-lg mb-4">我的条目库</h3>
+                             <button @click="dm.currentEntry = { id: null, title: '', content: '', type: 'NPC'}; dm.isEditing = true" class="mb-4 w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700">创建新条目</button>
+                             <div class="space-y-3 max-h-96 overflow-y-auto">
+                                <div v-for="entry in dm.entries" :key="entry.id" class="p-3 border rounded-md flex justify-between items-center">
+                                     <div>
+                                         <p class="font-medium">{{ entry.title }} <span class="text-xs bg-gray-200 px-1 rounded">{{entry.type}}</span></p>
+                                         <p class="text-xs text-gray-500">ID: {{ entry.id }}</p>
+                                     </div>
+                                     <div>
+                                         <button @click="editEntry(entry)" class="text-sm text-blue-500 hover:underline mr-2">编辑</button>
+                                         <button @click="deleteEntry(entry.id)" class="text-sm text-red-500 hover:underline">删除</button>
+                                     </div>
+                                </div>
+                             </div>
+                             <div class="mt-6 border-t pt-4">
+                                 <h4 class="font-semibold text-md mb-2">打包条目生成访问码</h4>
+                                 <div class="space-y-2">
+                                     <p>选择要分享的条目:</p>
+                                     <div class="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                                         <label v-for="entry in dm.entries" :key="entry.id" class="flex items-center text-sm p-2 border rounded-md">
+                                             <input type="checkbox" :value="entry.id" v-model="dm.selectedEntries" class="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                             {{ entry.title }}
+                                         </label>
+                                     </div>
+                                     <button @click="generateAccessCode" :disabled="dm.selectedEntries.length === 0" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400">生成访问码</button>
+                                     <div v-if="dm.lastGeneratedCode" class="mt-2 p-3 bg-green-100 text-green-800 rounded-md text-center">
+                                         <p>生成成功！访问码: <strong class="text-lg">{{ dm.lastGeneratedCode }}</strong> (请分享给玩家)</p>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                         <div v-if="dm.isEditing" class="p-6 bg-white rounded-lg shadow">
+                             <h3 class="font-semibold text-lg mb-4">{{ dm.currentEntry.id ? '编辑条目' : '创建新条目' }}</h3>
+                             <div class="space-y-4">
+                                <input v-model="dm.currentEntry.title" placeholder="标题" class="w-full px-3 py-2 border rounded-md">
+                                <select v-model="dm.currentEntry.type" class="w-full px-3 py-2 border rounded-md bg-white">
+                                    <option>NPC</option><option>地点</option><option>任务</option><option>物品</option><option>背景</option>
+                                </select>
+                                <p class="text-sm text-gray-500">内容 (支持 Markdown):</p>
+                                <textarea v-model="dm.currentEntry.content" rows="10" placeholder="详细内容..." class="w-full px-3 py-2 border rounded-md"></textarea>
+                                 <div class="flex space-x-2">
+                                     <button @click="saveEntry" class="flex-1 bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700">保存</button>
+                                     <button @click="dm.isEditing = false" class="flex-1 bg-gray-300 py-2 rounded-md hover:bg-gray-400">取消</button>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                </div>
+
+                <!-- 玩家面板 -->
+                <div v-if="activeTab === 'player' && hasPermission('edit_own_char_sheet')">
+                    <h2 class="text-2xl font-semibold mb-4">玩家面板</h2>
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <!-- 角色卡 -->
+                        <div class="p-6 bg-white rounded-lg shadow space-y-6">
+                            <div>
+                                <h3 class="font-semibold text-lg mb-4">基本信息</h3>
+                                <div class="space-y-4">
+                                    <input v-model="player.charSheet.name" @blur="saveCharSheet" placeholder="角色名" class="w-full px-3 py-2 border rounded-md">
+                                    <input v-model="player.charSheet.raceClass" @blur="saveCharSheet" placeholder="种族与职业" class="w-full px-3 py-2 border rounded-md">
+                                </div>
+                            </div>
+                            
+                            <!-- ** 更新 ** 属性与技能UI -->
+                            <div class="border-t pt-6">
+                                <h3 class="font-semibold text-lg mb-4">属性与技能</h3>
+                                <div class="space-y-2">
+                                    <div v-for="(stat, index) in player.charSheet.stats" :key="stat.id" class="flex items-center space-x-2">
+                                        <input v-model="stat.key" @blur="saveCharSheet" placeholder="属性/技能名" class="w-1/2 px-3 py-2 border rounded-md">
+                                        <input v-model="stat.value" @blur="saveCharSheet" placeholder="值" class="flex-1 px-3 py-2 border rounded-md">
+                                        <button @click="removeStat(index)" class="text-red-500 hover:text-red-700 p-2 rounded-full bg-red-100 hover:bg-red-200">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <button @click="addStat" class="mt-4 w-full text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-md">添加属性/技能</button>
+                            </div>
+
+                            <!-- ** 更新 ** 物品与装备UI -->
+                             <div class="border-t pt-6">
+                                <h3 class="font-semibold text-lg mb-4">物品与装备</h3>
+                                <div class="space-y-3">
+                                    <div v-for="(item, index) in player.charSheet.inventory" :key="item.id" class="p-3 border rounded-md space-y-2">
+                                        <div class="flex items-center space-x-2">
+                                            <input v-model="item.name" @blur="saveCharSheet" placeholder="物品名称" class="flex-1 px-3 py-2 border rounded-md font-medium">
+                                            <input v-model.number="item.quantity" @blur="saveCharSheet" type="number" placeholder="数量" class="w-20 px-3 py-2 border rounded-md">
+                                            <button @click="removeItem(index)" class="text-red-500 hover:text-red-700 p-2 rounded-full bg-red-100 hover:bg-red-200">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        </div>
+                                        <textarea v-model="item.notes" @blur="saveCharSheet" placeholder="备注或描述" rows="1" class="w-full text-sm px-3 py-1 border rounded-md"></textarea>
+                                    </div>
+                                </div>
+                                <button @click="addItem" class="mt-4 w-full text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-md">添加物品</button>
+                            </div>
+                            
+                            <!-- 背景与笔记 -->
+                            <div class="border-t pt-6">
+                                <h3 class="font-semibold text-lg mb-4">背景与笔记</h3>
+                                <textarea v-model="player.charSheet.notes" @blur="saveCharSheet" rows="8" placeholder="我的角色背景故事..." class="w-full px-3 py-2 border rounded-md"></textarea>
+                            </div>
+
+                            <div v-if="player.saveStatus" class="text-sm text-center text-green-600">{{ player.saveStatus }}</div>
+                        </div>
+
+                        <!-- 解锁内容面板 -->
+                        <div class="space-y-8">
+                           <div class="p-6 bg-white rounded-lg shadow">
+                               <h3 class="font-semibold text-lg mb-4">解锁内容</h3>
+                               <div class="flex space-x-2">
+                                   <input v-model="player.accessCodeInput" placeholder="输入DM给的访问码" class="flex-1 px-3 py-2 border rounded-md">
+                                   <button @click="redeemAccessCode" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">解锁</button>
+                               </div>
+                           </div>
+                            <div class="p-6 bg-white rounded-lg shadow">
+                                <h3 class="font-semibold text-lg mb-4">已解锁条目</h3>
+                                <div v-if="player.unlockedEntries.length === 0" class="text-gray-500">暂无内容</div>
+                                <div class="space-y-4 max-h-screen overflow-y-auto">
+                                    <div v-for="entry in player.unlockedEntries" :key="entry.id" class="p-4 border rounded-lg">
+                                        <h4 class="text-xl font-bold">{{ entry.title }} <span class="text-sm bg-gray-200 px-1.5 py-0.5 rounded">{{entry.type}}</span></h4>
+                                        <div class="prose max-w-none mt-2" v-html="renderMarkdown(entry.content)"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <script>
+        // --- 模拟数据库 ---
+        const mockDatabase = {
+            permissions: [
+                { id: 'view_admin_panel', description: '查看后台管理面板' },
+                { id: 'manage_roles_permissions', description: '管理角色和权限' },
+                { id: 'manage_users', description: '管理用户角色' },
+                { id: 'create_entries', description: '创建和编辑条目' },
+                { id: 'generate_access_codes', description: '打包条目生成访问码' },
+                { id: 'edit_own_char_sheet', description: '编辑自己的角色卡' },
+                { id: 'view_shared_content', description: '查看被分享的内容' },
+            ],
+            roles: [
+                { id: 'admin', name: 'admin', permissions: ['view_admin_panel', 'manage_roles_permissions', 'manage_users'] },
+                { id: 'dm', name: 'dm', permissions: ['create_entries', 'generate_access_codes', 'view_shared_content'] },
+                { id: 'player', name: 'player', permissions: ['edit_own_char_sheet', 'view_shared_content'] }
+            ],
+            users: [
+                { uid: 'user-001', email: 'admin@test.com', password: 'password123', roles: ['admin'] },
+                { uid: 'user-002', email: 'dm@test.com', password: 'password123', roles: ['dm', 'player'] },
+                { uid: 'user-003', email: 'player@test.com', password: 'password123', roles: ['player'] }
+            ],
+            entries: [
+                { id: 'entry-1', authorId: 'user-002', title: '临冬城', type: '地点', content: '北境的古老首都，史塔克家族的城堡。' },
+                { id: 'entry-2', authorId: 'user-002', title: 'NPC: 铁匠巴隆', type: 'NPC', content: '一位脾气古怪但技艺高超的铁匠。' },
+            ],
+            // ** 更新 ** character_sheets 数据结构
+            character_sheets: {
+                'user-002': { 
+                    uid: 'user-002', name: 'DM的角色', raceClass: '人类/法师', 
+                    stats: [{ id: 'stat-dm-1', key: '智力', value: '18' }, { id: 'stat-dm-2', key: '奥秘', value: '+5' }],
+                    inventory: [{ id: 'item-dm-1', name: '法杖', quantity: 1, notes: '橡木制' }],
+                    notes: '我同时也是一个玩家' 
+                },
+                'user-003': { 
+                    uid: 'user-003', name: '艾莉亚', raceClass: '人类/游侠', 
+                    stats: [
+                        { id: 'stat-p-1', key: '力量', value: '12' },
+                        { id: 'stat-p-2', key: '敏捷', value: '16' },
+                        { id: 'stat-p-3', key: '体质', value: '14' },
+                    ],
+                    inventory: [
+                        { id: 'item-p-1', name: '细剑', quantity: 1, notes: '“缝衣针”' },
+                        { id: 'item-p-2', name: '皮甲', quantity: 1, notes: '合身的' },
+                    ],
+                    notes: '凡人皆有一死。' 
+                },
+            },
+            shared_packages: []
+        };
+        
+        const App = {
+            data() {
+                return {
+                    authMode: 'login',
+                    credentials: { email: '', password: '' },
+                    authError: '',
+                    user: { loggedIn: false, uid: null, email: null, roles: [], permissions: new Set() },
+                    globalMessage: null,
+                    activeTab: '',
+                    admin: {
+                        users: JSON.parse(JSON.stringify(mockDatabase.users)),
+                        roles: JSON.parse(JSON.stringify(mockDatabase.roles)),
+                        permissions: JSON.parse(JSON.stringify(mockDatabase.permissions))
+                    },
+                    dm: { 
+                        entries: [], 
+                        currentEntry: { id: null, title: '', content: '', type: 'NPC' },
+                        isEditing: false, 
+                        selectedEntries: [], 
+                        lastGeneratedCode: '' 
+                    },
+                    player: { 
+                        charSheet: { name:'', raceClass:'', stats:[], inventory:[], notes:''}, 
+                        saveStatus: '', 
+                        accessCodeInput: '', 
+                        unlockedEntries: [],
+                    },
+                    db: JSON.parse(JSON.stringify(mockDatabase))
+                }
+            },
+            
+            methods: {
+                showGlobalMessage(text, type = 'success', duration = 3000) {
+                    this.globalMessage = { text, type };
+                    setTimeout(() => { this.globalMessage = null; }, duration);
+                },
+                renderMarkdown(md) {
+                    if(!md) return '';
+                    return new showdown.Converter().makeHtml(md);
+                },
+                generateId(prefix = 'id') {
+                    return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                },
+
+                // --- 模拟认证 ---
+                login() {
+                    this.authError = '';
+                    const foundUser = this.db.users.find(
+                        u => u.email === this.credentials.email && u.password === this.credentials.password
+                    );
+
+                    if (foundUser) {
+                        // **注意**：这里不重置状态，以保留“数据库”中的更改
+                        this.onLogin(foundUser);
+                    } else {
+                        this.authError = "邮箱或密码错误。";
+                    }
+                },
+                register() {
+                    this.authError = '';
+                    if (this.db.users.find(u => u.email === this.credentials.email)) {
+                        this.authError = '该邮箱已被注册。';
+                        return;
+                    }
+                    const newUser = {
+                        uid: this.generateId('user'),
+                        email: this.credentials.email,
+                        password: this.credentials.password,
+                        roles: ['player']
+                    };
+                    this.db.users.push(newUser);
+                    this.db.character_sheets[newUser.uid] = { uid: newUser.uid, name: '', raceClass: '', stats: [], inventory: [], notes: '' };
+                    
+                    this.showGlobalMessage('注册成功！请登录。');
+                    this.authMode = 'login';
+                },
+                logout() {
+                    // 只重置用户状态，不清空数据库
+                    this.user = { loggedIn: false, uid: null, email: null, roles: [], permissions: new Set() };
+                    this.activeTab = '';
+                },
+
+                // --- 权限 ---
+                hasPermission(perm) {
+                    return this.user.permissions.has(perm);
+                },
+
+                // --- 初始化和清理 ---
+                resetState() {
+                    this.user = { loggedIn: false, uid: null, email: null, roles: [], permissions: new Set() };
+                    this.activeTab = '';
+                    this.db = JSON.parse(JSON.stringify(mockDatabase)); // 重置为初始模拟数据
+                    this.admin = { users: this.db.users, roles: this.db.roles, permissions: this.db.permissions };
+                    this.dm = { entries: [], currentEntry: { id: null, title: '', content: '', type: 'NPC' }, isEditing: false, selectedEntries: [], lastGeneratedCode: '' };
+                    this.player = { charSheet: { name:'', raceClass:'', stats:[], inventory:[], notes:'' }, saveStatus: '', accessCodeInput: '', unlockedEntries: [] };
+                },
+
+                onLogin(loginUser) {
+                    this.user.loggedIn = true;
+                    this.user.uid = loginUser.uid;
+                    this.user.email = loginUser.email;
+                    this.user.roles = loginUser.roles || [];
+                    
+                    this.loadPermissions();
+                    this.setupDataViews();
+                    this.setDefaultTab();
+                },
+                
+                setDefaultTab() {
+                    if (this.hasPermission('view_admin_panel')) { this.activeTab = 'admin'; } 
+                    else if (this.hasPermission('create_entries')) { this.activeTab = 'dm'; } 
+                    else if (this.hasPermission('edit_own_char_sheet')) { this.activeTab = 'player'; }
+                },
+                
+                loadPermissions() {
+                    this.user.permissions.clear();
+                    if (this.user.roles.length === 0) return;
+                    
+                    const userRolesData = this.db.roles.filter(r => this.user.roles.includes(r.name));
+                    userRolesData.forEach(roleData => {
+                        if (roleData.permissions) {
+                            roleData.permissions.forEach(perm => this.user.permissions.add(perm));
+                        }
+                    });
+                },
+
+                // --- 数据加载 ---
+                setupDataViews() {
+                    // Admin视图已经直接绑定到this.admin，它在登录时从db加载
+                    this.admin.users = this.db.users;
+
+                    if (this.hasPermission('create_entries')) {
+                        this.dm.entries = this.db.entries.filter(e => e.authorId === this.user.uid);
+                    }
+                    if (this.hasPermission('edit_own_char_sheet')) {
+                        // ** 更新 ** 深拷贝以避免视图直接修改“数据库”
+                        this.player.charSheet = JSON.parse(JSON.stringify(this.db.character_sheets[this.user.uid] || { name:'', raceClass:'', stats:[], inventory:[], notes:'' }));
+                    }
+                    this.loadUnlockedContent();
+                },
+                
+                loadUnlockedContent() {
+                    this.player.unlockedEntries = [];
+                    const unlockedPackages = this.db.shared_packages.filter(p => p.authorizedUsers.includes(this.user.uid));
+                    const unlockedEntryIds = new Set();
+                    unlockedPackages.forEach(p => { p.entryIds.forEach(id => unlockedEntryIds.add(id)); });
+                    this.player.unlockedEntries = this.db.entries.filter(e => unlockedEntryIds.has(e.id));
+                },
+                
+                // --- Admin 功能 ---
+                toggleUserRole(user, roleName, isChecked) {
+                    const targetUser = this.db.users.find(u => u.uid === user.uid);
+                    if (!targetUser) return;
+                    const roles = new Set(targetUser.roles || []);
+                    if (isChecked) { roles.add(roleName); } else { roles.delete(roleName); }
+                    targetUser.roles = Array.from(roles);
+                    this.showGlobalMessage("用户角色更新成功!");
+                },
+                updateRolePermission(roleId, permId, checked) {
+                    const targetRole = this.db.roles.find(r => r.id === roleId);
+                    if (!targetRole) return;
+                    const permissions = new Set(targetRole.permissions || []);
+                    if(checked) { permissions.add(permId); } else { permissions.delete(permId); }
+                    targetRole.permissions = Array.from(permissions);
+                    this.showGlobalMessage("权限更新成功!");
+                    this.loadPermissions();
+                },
+                
+                // --- DM 功能 ---
+                editEntry(entry) { this.dm.currentEntry = { ...entry }; this.dm.isEditing = true; },
+                saveEntry() {
+                    if (!this.dm.currentEntry.title) { this.showGlobalMessage("标题不能为空", "error"); return; }
+                    if (this.dm.currentEntry.id) {
+                        const index = this.db.entries.findIndex(e => e.id === this.dm.currentEntry.id);
+                        if(index > -1) this.db.entries[index] = { ...this.dm.currentEntry };
+                    } else {
+                        this.db.entries.push({ ...this.dm.currentEntry, id: this.generateId('entry'), authorId: this.user.uid });
+                    }
+                    this.dm.isEditing = false;
+                    this.dm.currentEntry = { id: null, title: '', content: '', type: 'NPC' };
+                    this.setupDataViews();
+                },
+                deleteEntry(entryId) {
+                    if(window.confirm("确定要删除这个条目吗？")) {
+                        this.db.entries = this.db.entries.filter(e => e.id !== entryId);
+                        this.setupDataViews();
+                        this.showGlobalMessage("条目已删除");
+                    }
+                },
+                generateAccessCode() {
+                    const code = 'dnd-' + Math.random().toString(36).substr(2, 8);
+                    this.db.shared_packages.push({
+                        id: this.generateId('pkg'), creatorId: this.user.uid, accessCode: code, 
+                        entryIds: this.dm.selectedEntries, authorizedUsers: []
+                    });
+                    this.dm.lastGeneratedCode = code;
+                    this.dm.selectedEntries = [];
+                },
+
+                // --- Player 功能 ---
+                saveCharSheet() {
+                    // 将视图中的数据保存回模拟“数据库”
+                    this.db.character_sheets[this.user.uid] = JSON.parse(JSON.stringify(this.player.charSheet));
+                    this.player.saveStatus = '已保存 ' + new Date().toLocaleTimeString();
+                    setTimeout(() => this.player.saveStatus = '', 2000);
+                },
+                addStat() {
+                    if (!this.player.charSheet.stats) {
+                        this.player.charSheet.stats = [];
+                    }
+                    this.player.charSheet.stats.push({ id: this.generateId('stat'), key: '', value: '' });
+                },
+                removeStat(index) {
+                    this.player.charSheet.stats.splice(index, 1);
+                    this.saveCharSheet();
+                },
+                addItem() {
+                    if (!this.player.charSheet.inventory) {
+                        this.player.charSheet.inventory = [];
+                    }
+                    this.player.charSheet.inventory.push({ id: this.generateId('item'), name: '', quantity: 1, notes: '' });
+                },
+                removeItem(index) {
+                    this.player.charSheet.inventory.splice(index, 1);
+                    this.saveCharSheet();
+                },
+                redeemAccessCode() {
+                    const code = this.player.accessCodeInput.trim();
+                    if (!code) return;
+                    const pkg = this.db.shared_packages.find(p => p.accessCode === code);
+                    if (!pkg) { this.showGlobalMessage('无效的访问码', 'error'); return; }
+                    if (!pkg.authorizedUsers.includes(this.user.uid)) {
+                        pkg.authorizedUsers.push(this.user.uid);
+                    }
+                    this.showGlobalMessage('解锁成功!', 'success');
+                    this.player.accessCodeInput = '';
+                    this.loadUnlockedContent();
+                }
+            },
+            mounted() {
+                // 页面加载时重置到初始状态
+                this.resetState();
+            }
+        };
+
+        Vue.createApp(App).mount('#app');
+    </script>
+</body>
+</html>
