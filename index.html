@@ -255,6 +255,16 @@
                                 </div>
                                 <button @click="addKeyToTemplate(module)" class="w-full text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 rounded-md mt-2">添加栏位</button>
                             </div>
+                            <div v-if="module.type === 'skill-selection-list'" class="space-y-2">
+                                <p class="text-sm text-gray-600">预设技能池:</p>
+                                <div v-for="(skill, skillIndex) in module.availableSkills" :key="skillIndex" class="flex items-center">
+                                    <input v-model="module.availableSkills[skillIndex]" @blur="saveTemplate" class="w-full px-3 py-1 border rounded-md text-sm">
+                                    <button @click="removeSkillFromTemplate(module, skillIndex)" class="ml-2 text-gray-400 hover:text-red-500">
+                                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                                    </button>
+                                </div>
+                                <button @click="addSkillToTemplate(module)" class="w-full text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 rounded-md mt-2">添加技能</button>
+                            </div>
                             <div v-if="module.type === 'computed-field'" class="space-y-2">
                                 <p class="text-sm text-gray-600">计算逻辑 (JavaScript):</p>
                                 <textarea v-model="module.formula" @blur="saveTemplate" rows="4" class="w-full code-editor"></textarea>
@@ -304,6 +314,16 @@ return Math.floor((str - 10) / 2);</code></pre>
                                             </div>
                                         </div>
                                         <p v-if="!findTemplateModule(module).keys || findTemplateModule(module).keys.length === 0" class="text-sm text-gray-400 text-center">DM尚未设定此模块的栏位</p>
+                                    </div>
+                                </div>
+                                <div v-if="module.type === 'skill-selection-list'" class="border-b pb-6 mb-6">
+                                    <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
+                                    <div class="space-y-2">
+                                        <label v-for="skillName in findTemplateModule(module).availableSkills" :key="skillName" class="flex items-center p-2 rounded-md hover:bg-gray-50">
+                                            <input type="checkbox" v-model="module.data[skillName]" @change="saveCharSheet" class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                            <span class="ml-3 font-medium text-sm text-gray-800">{{ skillName }}</span>
+                                        </label>
+                                        <p v-if="!findTemplateModule(module).availableSkills || findTemplateModule(module).availableSkills.length === 0" class="text-sm text-gray-400 text-center">DM尚未设定此模块的技能</p>
                                     </div>
                                 </div>
                                 <div v-if="module.type === 'item-list'" class="border-b pb-6 mb-6">
@@ -368,13 +388,13 @@ return Math.floor((str - 10) / 2);</code></pre>
             users: [ { uid: 'user-001', email: 'admin@test.com', password: 'password123', roles: ['admin'] }, { uid: 'user-002', email: 'dm@test.com', password: 'password123', roles: ['dm', 'player'] }, { uid: 'user-003', email: 'player@test.com', password: 'password123', roles: ['player'] } ],
             presetCategories: ['NPC', '地点', '任务', '物品', '背景', '组织', '历史', '技能'],
             entries: [ { id: 'entry-1', authorId: 'user-002', title: '临冬城', type: '地点', content: '北境的古老首都，史塔克家族的城堡。', tags: ['地点', '北境', '史塔克'] }, { id: 'entry-2', authorId: 'user-002', title: 'NPC: 铁匠巴隆', type: 'NPC', content: '一位脾气古怪但技艺高超的铁匠。', tags: ['NPC', '工匠'] }, { id: 'skill-fireball', authorId: 'user-002', title: '火焰箭', type: '技能', content: '造成1d6火焰伤害。', tags: ['法术', '塑能'] }, { id: 'item-firering', authorId: 'user-002', title: '炎之指环', type: '物品', content: '一枚刻有火焰符文的红宝石戒指。', tags: ['魔法物品', '戒指'], modifications: [{ targetSkillName: '火焰箭', newDescription: '伤害提升至2d6。', priority: 10 }] } ],
-            characterSheetModuleTemplates: [ { type: 'basic-info', name: '基本信息', defaultData: { name: '', raceClass: '' } }, { type: 'key-value-list', name: '属性/技能列表', defaultData: {} }, { type: 'item-list', name: '物品清单', defaultData: [] }, { type: 'long-text', name: '文本笔记', defaultData: { text: '' } }, { type: 'computed-field', name: '自动计算栏位', defaultData: { formula: 'return 0;' } } ],
+            characterSheetModuleTemplates: [ { type: 'basic-info', name: '基本信息', defaultData: { name: '', raceClass: '' } }, { type: 'key-value-list', name: '属性列表', defaultData: {} }, { type: 'item-list', name: '物品清单', defaultData: [] }, { type: 'long-text', name: '文本笔记', defaultData: { text: '' } }, { type: 'computed-field', name: '自动计算栏位', defaultData: { formula: 'return 0;' } }, { type: 'skill-selection-list', name: '技能选择列表', defaultData: {} } ],
             characterSheetTemplate: {
                 modules: [
                     { id: 'mod-1', title: '基本信息', type: 'basic-info' },
                     { id: 'mod-2', title: '属性', type: 'key-value-list', keys: ['力量', '敏捷', '体质', '智力', '感知', '魅力'] },
                     { id: 'mod-5', title: '力量调整值', type: 'computed-field', formula: "const statsModule = sheet.modules.find(m => m.title === '属性');\nif (!statsModule || !statsModule.data) return 0;\nconst str = parseInt(statsModule.data['力量']) || 0;\nconst mod = Math.floor((str - 10) / 2);\nreturn mod > 0 ? '+' + mod : mod;" },
-                    { id: 'mod-6', title: '技能', type: 'key-value-list', keys: ['奥秘', '运动', '火焰箭'] },
+                    { id: 'mod-6', title: '技能熟练项', type: 'skill-selection-list', availableSkills: ['奥秘', '运动', '游说', '威吓', '隐匿', '察觉'] },
                     { id: 'mod-3', title: '物品与装备', type: 'item-list' },
                     { id: 'mod-4', title: '背景与笔记', type: 'long-text' }
                 ]
@@ -424,21 +444,23 @@ return Math.floor((str - 10) / 2);</code></pre>
                 saveEntry() { if (!this.dm.currentEntry.title) { this.showGlobalMessage("标题不能为空", "error"); return; } if (this.dm.currentEntry.id) { const index = this.db.entries.findIndex(e => e.id === this.dm.currentEntry.id); if(index > -1) this.db.entries[index] = { ...this.dm.currentEntry }; } else { this.db.entries.push({ ...this.dm.currentEntry, id: this.generateId('entry'), authorId: this.user.uid }); } this.dm.isEditing = false; this.setupDataViews(); },
                 deleteEntry(entryId) { if(window.confirm("确定要删除这个条目吗？")) { this.db.entries = this.db.entries.filter(e => e.id !== entryId); this.setupDataViews(); this.showGlobalMessage("条目已删除"); } },
                 generateAccessCode() { const code = 'dnd-' + Math.random().toString(36).substr(2, 8); this.db.shared_packages.push({ id: this.generateId('pkg'), creatorId: this.user.uid, accessCode: code, entryIds: this.dm.selectedEntries, authorizedUsers: [] }); this.dm.lastGeneratedCode = code; this.dm.selectedEntries = []; },
+                toggleCategoryDropdown() { this.dm.categoryDropdownVisible = !this.dm.categoryDropdownVisible; },
                 selectCategory(category) { this.dm.currentEntry.type = category; this.dm.categoryDropdownVisible = false; },
-                hideCategoryDropdown() { setTimeout(() => { this.dm.categoryDropdownVisible = false; }, 200); },
                 addTag() { const newTag = this.dm.newTag.trim(); if (newTag && !this.dm.currentEntry.tags.includes(newTag)) { this.dm.currentEntry.tags.push(newTag); } this.dm.newTag = ''; },
                 removeTag(index) { this.dm.currentEntry.tags.splice(index, 1); },
                 addModification() { if(!this.dm.currentEntry.modifications) { this.dm.currentEntry.modifications = []; } this.dm.currentEntry.modifications.push({targetSkillName: '', newDescription: '', priority: 0}); },
                 removeModification(index) { this.dm.currentEntry.modifications.splice(index, 1); },
                 toggleModificationDropdown(index) { if (this.dm.activeModificationDropdown === index) { this.dm.activeModificationDropdown = null; } else { this.dm.activeModificationDropdown = index; } },
                 selectModificationSkill(mod, skill) { mod.targetSkillName = skill; this.dm.activeModificationDropdown = null; },
-                hideModificationDropdown(index) { if (this.dm.activeModificationDropdown === index) { setTimeout(() => { this.dm.activeModificationDropdown = null; }, 200); } },
                 getModuleTypeName(type) { const template = this.dm.moduleTemplates.find(t => t.type === type); return template ? template.name : '未知模块'; },
                 saveTemplate() { this.db.characterSheetTemplate = JSON.parse(JSON.stringify(this.dm.charSheetTemplate)); this.showGlobalMessage("模板已保存!", "success");},
-                addModuleToTemplate(template) { const newModule = { id: this.generateId('mod'), title: template.name, type: template.type, }; if (template.type === 'key-value-list') { newModule.keys = []; } if (template.type === 'computed-field') { newModule.formula = 'return 0;'; } this.dm.charSheetTemplate.modules.push(newModule); this.dm.addModuleDropdownVisible = false; this.saveTemplate(); },
+                toggleAddModuleDropdown() { this.dm.addModuleDropdownVisible = !this.dm.addModuleDropdownVisible; },
+                addModuleToTemplate(template) { const newModule = { id: this.generateId('mod'), title: template.name, type: template.type, }; if (template.type === 'key-value-list' || template.type === 'skill-selection-list') { newModule.keys = []; newModule.availableSkills = []; } if (template.type === 'computed-field') { newModule.formula = 'return 0;'; } this.dm.charSheetTemplate.modules.push(newModule); this.dm.addModuleDropdownVisible = false; this.saveTemplate(); },
                 removeModuleFromTemplate(index) { this.dm.charSheetTemplate.modules.splice(index, 1); this.saveTemplate(); },
                 addKeyToTemplate(module) { if (!module.keys) { module.keys = []; } module.keys.push('新属性'); this.saveTemplate(); },
                 removeKeyFromTemplate(module, keyIndex) { module.keys.splice(keyIndex, 1); this.saveTemplate(); },
+                addSkillToTemplate(module) { if (!module.availableSkills) { module.availableSkills = []; } module.availableSkills.push('新技能'); this.saveTemplate(); },
+                removeSkillFromTemplate(module, skillIndex) { module.availableSkills.splice(skillIndex, 1); this.saveTemplate(); },
                 saveCharSheet() { this.db.character_sheets[this.user.uid] = JSON.parse(JSON.stringify(this.player.charSheet)); this.player.saveStatus = '已保存 ' + new Date().toLocaleTimeString(); setTimeout(() => this.player.saveStatus = '', 2000); },
                 addItem(module) { if (!module.data) { module.data = []; } module.data.push({ id: this.generateId('item'), name: '', quantity: 1, notes: '' }); this.saveCharSheet(); },
                 removeItem(module, index) { module.data.splice(index, 1); this.saveCharSheet(); },
