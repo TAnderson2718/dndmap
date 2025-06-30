@@ -84,11 +84,13 @@
             <div class="mb-6 border-b border-gray-200">
                 <nav class="flex space-x-4 -mb-px">
                     <button v-if="hasPermission('view_admin_panel')" @click.stop="activeTab = 'admin'" :class="{ 'active': activeTab === 'admin' }" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">后台管理</button>
-                    <div v-if="hasPermission('create_entries')" class="relative" @mouseleave="dm.dmMenuVisible = false" @click.stop>
-                         <button @mouseover="dm.dmMenuVisible = true" :class="{ 'active': activeTab.startsWith('dm-') }" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">DM 工作台</button>
+                    <!-- ** 更新 ** 交互方式优化 -->
+                    <div v-if="hasPermission('create_entries')" class="relative" @click.stop>
+                         <button @click="toggleDmMenu" :class="{ 'active': activeTab.startsWith('dm-') }" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">DM 工作台</button>
                         <div v-if="dm.dmMenuVisible" class="absolute top-full left-0 mt-1 bg-white rounded-md shadow-lg py-1 z-20">
                             <a href="#" @click.prevent="activeTab = 'dm-entries'; dm.dmMenuVisible = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">内容管理</a>
                             <a href="#" @click.prevent="activeTab = 'dm-template'; dm.dmMenuVisible = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">角色卡模板</a>
+                            <a href="#" @click.prevent="activeTab = 'dm-party'; dm.dmMenuVisible = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">队伍管理</a>
                         </div>
                     </div>
                     <button v-if="hasPermission('edit_own_char_sheet')" @click.stop="activeTab = 'player'; setupDataViews()" :class="{ 'active': activeTab === 'player' }" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">玩家面板</button>
@@ -288,12 +290,61 @@ return Math.floor((str - 10) / 2);</code></pre>
                     </div>
                 </div>
 
+                <!-- DM 队伍管理面板 -->
+                <div v-if="activeTab === 'dm-party'">
+                    <h2 class="text-2xl font-semibold mb-4">队伍管理</h2>
+                    <div class="grid md:grid-cols-3 gap-8">
+                        <div class="md:col-span-1 p-6 bg-white rounded-lg shadow">
+                             <h3 class="font-semibold text-lg mb-4">玩家列表</h3>
+                             <div class="space-y-2">
+                                <button v-for="player in partyMembers" :key="player.uid" @click="selectManagedPlayer(player)"
+                                    class="w-full text-left p-3 rounded-md border"
+                                    :class="{'bg-indigo-100 border-indigo-400': dm.managedPlayerId === player.uid, 'hover:bg-gray-50': dm.managedPlayerId !== player.uid}">
+                                    {{ player.email }}
+                                </button>
+                             </div>
+                        </div>
+                        <div v-if="managedPlayerSheet" class="md:col-span-2 p-6 bg-white rounded-lg shadow" @click.stop>
+                            <h3 class="font-semibold text-lg mb-4">正在编辑 {{ managedPlayer.email }} 的背包</h3>
+                            <div v-for="module in managedPlayerSheet.modules" :key="module.id">
+                                <div v-if="module.type === 'item-list'" class="space-y-6">
+                                    <h4 class="font-medium">{{ module.title }}</h4>
+                                    <div class="space-y-3">
+                                        <div v-for="(item, index) in module.data" :key="item.id" class="p-3 border rounded-md space-y-2">
+                                            <div class="flex items-center space-x-2">
+                                                <span class="flex-1 font-medium">{{ item.name }}</span>
+                                                <input v-model.number="item.quantity" @blur="saveManagedPlayerSheet" type="number" placeholder="数量" class="w-20 px-3 py-2 border rounded-md">
+                                                <button @click="removeItemFromManaged(module, index)" class="text-red-500 hover:text-red-700 p-2 rounded-full bg-red-100 hover:bg-red-200">
+                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                </button>
+                                            </div>
+                                            <textarea v-model="item.notes" @blur="saveManagedPlayerSheet" placeholder="备注或描述" rows="1" class="w-full text-sm px-3 py-1 border rounded-md"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="relative">
+                                        <button @click="toggleAddItemDropdown" class="w-full text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-md">给玩家添加物品</button>
+                                        <ul v-if="dm.addItemDropdownVisible" class="absolute bottom-full mb-2 z-20 w-full bg-white border rounded-md mt-1 max-h-48 overflow-y-auto shadow-lg">
+                                            <li v-for="entry in availableItems" :key="entry.id" @click="addItemToManaged(module, entry.title)" class="px-3 py-2 cursor-pointer hover:bg-gray-100">
+                                                {{ entry.title }}
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                         <div v-else class="md:col-span-2 flex items-center justify-center p-6 bg-white rounded-lg shadow">
+                            <p class="text-gray-500">请从左侧选择一个玩家以编辑其背包。</p>
+                        </div>
+                    </div>
+                </div>
+
+
                 <!-- 玩家面板 -->
                 <div v-if="activeTab === 'player'">
                     <h2 class="text-2xl font-semibold mb-4">玩家面板</h2>
                     <div class="grid md:grid-cols-2 gap-8">
                         <div class="p-6 bg-white rounded-lg shadow space-y-6">
-                            <div v-for="module in player.charSheet.modules" :key="module.id">
+                            <div v-for="module in player.charSheet.modules" :key="module.id" @click.stop>
                                 <div v-if="module.type === 'basic-info'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
                                     <div class="space-y-4">
@@ -328,17 +379,16 @@ return Math.floor((str - 10) / 2);</code></pre>
                                 </div>
                                 <div v-if="module.type === 'item-list'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
-                                    <div class="space-y-3">
-                                        <div v-for="(item, index) in module.data" :key="item.id" class="p-3 border rounded-md space-y-2">
-                                            <div class="flex items-center space-x-2">
-                                                <input v-model="item.name" @blur="saveCharSheet" placeholder="物品名称" class="flex-1 px-3 py-2 border rounded-md font-medium">
-                                                <input v-model.number="item.quantity" @blur="saveCharSheet" type="number" placeholder="数量" class="w-20 px-3 py-2 border rounded-md">
-                                                <button @click="removeItem(module, index)" class="text-red-500 hover:text-red-700 p-2 rounded-full bg-red-100 hover:bg-red-200"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                    <div v-if="!module.data || module.data.length === 0" class="text-sm text-gray-500 text-center py-4">你的背包空空如也...</div>
+                                    <div v-else class="space-y-3">
+                                        <div v-for="(item, index) in module.data" :key="item.id" class="p-3 border rounded-md">
+                                            <div class="flex justify-between items-center">
+                                                <span class="font-medium">{{ item.name }}</span>
+                                                <span class="font-bold text-lg">x {{ item.quantity }}</span>
                                             </div>
-                                            <textarea v-model="item.notes" @blur="saveCharSheet" placeholder="备注或描述" rows="1" class="w-full text-sm px-3 py-1 border rounded-md"></textarea>
+                                            <p v-if="item.notes" class="text-sm text-gray-600 mt-1">{{ item.notes }}</p>
                                         </div>
                                     </div>
-                                    <button @click="addItem(module)" class="mt-4 w-full text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-md">添加新物品</button>
                                 </div>
                                 <div v-if="module.type === 'long-text'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
@@ -415,10 +465,25 @@ return Math.floor((str - 10) / 2);</code></pre>
                         this.dm.charSheetTemplate.modules.forEach(module => {
                             if (module.type === 'key-value-list' && module.keys) {
                                 skills = skills.concat(module.keys);
+                            } else if (module.type === 'skill-selection-list' && module.availableSkills) {
+                                skills = skills.concat(module.availableSkills);
                             }
                         });
                     }
                     return [...new Set(skills)];
+                },
+                availableItems() {
+                    return this.db.entries.filter(e => e.type === '物品');
+                },
+                partyMembers() {
+                    return this.db.users.filter(u => u.roles.includes('player'));
+                },
+                managedPlayer() {
+                    return this.db.users.find(u => u.uid === this.dm.managedPlayerId);
+                },
+                managedPlayerSheet() {
+                    if (!this.dm.managedPlayerId) return null;
+                    return this.db.character_sheets[this.dm.managedPlayerId];
                 }
             },
             methods: {
@@ -431,11 +496,12 @@ return Math.floor((str - 10) / 2);</code></pre>
                 logout() { this.resetViews(); },
                 hasPermission(perm) { return this.user.permissions.has(perm); },
                 resetStateAndDb() { this.db = JSON.parse(JSON.stringify(mockDatabase)); this.resetViews(); },
-                resetViews() { this.user = { loggedIn: false, uid: null, email: null, roles: [], permissions: new Set() }; this.activeTab = 'login'; this.admin = { users: this.db.users, roles: this.db.roles, permissions: this.db.permissions, }; this.dm = { entries: [], currentEntry: { id: null, title: '', content: '', type: 'NPC', tags: [], modifications: [] }, isEditing: false, selectedEntries: [], lastGeneratedCode: '', presetCategories: this.db.presetCategories, categoryDropdownVisible: false, newTag: '', charSheetTemplate: this.db.characterSheetTemplate, moduleTemplates: this.db.characterSheetModuleTemplates, addModuleDropdownVisible: false, dmMenuVisible: false, activeModificationDropdown: null }; this.player = { charSheet: { modules: [] }, saveStatus: '', accessCodeInput: '', unlockedEntries: [], }; },
+                resetViews() { this.user = { loggedIn: false, uid: null, email: null, roles: [], permissions: new Set() }; this.activeTab = 'login'; this.admin = { users: this.db.users, roles: this.db.roles, permissions: this.db.permissions, }; this.dm = { entries: [], currentEntry: { id: null, title: '', content: '', type: 'NPC', tags: [], modifications: [] }, isEditing: false, selectedEntries: [], lastGeneratedCode: '', presetCategories: this.db.presetCategories, categoryDropdownVisible: false, newTag: '', charSheetTemplate: this.db.characterSheetTemplate, moduleTemplates: this.db.characterSheetModuleTemplates, addModuleDropdownVisible: false, dmMenuVisible: false, activeModificationDropdown: null, managedPlayerId: null, addItemDropdownVisible: false }; this.player = { charSheet: { modules: [] }, saveStatus: '', accessCodeInput: '', unlockedEntries: [], activeItemDropdown: null }; },
                 onLogin(loginUser) { this.resetViews(); this.user.loggedIn = true; this.user.uid = loginUser.uid; this.user.email = loginUser.email; this.user.roles = loginUser.roles || []; this.loadPermissions(); this.setupDataViews(); this.setDefaultTab(); },
                 setDefaultTab() { if (this.hasPermission('view_admin_panel')) { this.activeTab = 'admin'; } else if (this.hasPermission('create_entries')) { this.activeTab = 'dm-entries'; } else if (this.hasPermission('edit_own_char_sheet')) { this.activeTab = 'player'; } },
                 loadPermissions() { this.user.permissions.clear(); if (this.user.roles.length === 0) return; const userRolesData = this.db.roles.filter(r => this.user.roles.includes(r.name)); userRolesData.forEach(roleData => { if (roleData.permissions) { roleData.permissions.forEach(perm => this.user.permissions.add(perm)); } }); },
-                setupDataViews() { if (this.hasPermission('create_entries')) { this.dm.entries = this.db.entries.filter(e => e.authorId === this.user.uid); } if (this.hasPermission('edit_own_char_sheet')) { let playerData = this.db.character_sheets[this.user.uid]; const template = this.db.characterSheetTemplate; const syncedModules = template.modules.map(templateModule => { const playerModule = playerData?.modules.find(pMod => pMod.id === templateModule.id); let data = {}; if (playerModule) { data = playerModule.data; } else { const moduleTemplate = this.db.characterSheetModuleTemplates.find(t => t.type === templateModule.type); data = JSON.parse(JSON.stringify(moduleTemplate.defaultData)); } return { ...templateModule, data: data }; }); this.player.charSheet = { modules: syncedModules }; this.db.character_sheets[this.user.uid] = this.player.charSheet; } this.loadUnlockedContent(); },
+                setupDataViews() { if (this.hasPermission('create_entries')) { this.dm.entries = this.db.entries.filter(e => e.authorId === this.user.uid); } if (this.hasPermission('edit_own_char_sheet')) { this.syncPlayerSheetWithTemplate(this.user.uid); } this.loadUnlockedContent(); },
+                syncPlayerSheetWithTemplate(playerId) { let playerData = this.db.character_sheets[playerId]; const template = this.db.characterSheetTemplate; const syncedModules = template.modules.map(templateModule => { const playerModule = playerData?.modules.find(pMod => pMod.id === templateModule.id); let data = {}; if (playerModule) { data = playerModule.data; } else { const moduleTemplate = this.db.characterSheetModuleTemplates.find(t => t.type === templateModule.type); data = JSON.parse(JSON.stringify(moduleTemplate.defaultData)); } return { ...templateModule, data: data }; }); const finalSheet = { modules: syncedModules }; this.db.character_sheets[playerId] = finalSheet; if (this.user.uid === playerId) { this.player.charSheet = finalSheet; } return finalSheet; },
                 loadUnlockedContent() { this.player.unlockedEntries = []; const unlockedPackages = this.db.shared_packages.filter(p => p.authorizedUsers.includes(this.user.uid)); const unlockedEntryIds = new Set(); unlockedPackages.forEach(p => { p.entryIds.forEach(id => unlockedEntryIds.add(id)); }); this.player.unlockedEntries = this.db.entries.filter(e => unlockedEntryIds.has(e.id)); },
                 toggleUserRole(user, roleName, isChecked) { const targetUser = this.db.users.find(u => u.uid === user.uid); if (!targetUser) return; const roles = new Set(targetUser.roles || []); if (isChecked) { roles.add(roleName); } else { roles.delete(roleName); } targetUser.roles = Array.from(roles); this.showGlobalMessage("用户角色更新成功!"); },
                 updateRolePermission(roleId, permId, checked) { const targetRole = this.db.roles.find(r => r.id === roleId); if (!targetRole) return; const permissions = new Set(targetRole.permissions || []); if(checked) { permissions.add(permId); } else { permissions.delete(permId); } targetRole.permissions = Array.from(permissions); this.showGlobalMessage("权限更新成功!"); this.loadPermissions(); },
@@ -462,8 +528,8 @@ return Math.floor((str - 10) / 2);</code></pre>
                 addSkillToTemplate(module) { if (!module.availableSkills) { module.availableSkills = []; } module.availableSkills.push('新技能'); this.saveTemplate(); },
                 removeSkillFromTemplate(module, skillIndex) { module.availableSkills.splice(skillIndex, 1); this.saveTemplate(); },
                 saveCharSheet() { this.db.character_sheets[this.user.uid] = JSON.parse(JSON.stringify(this.player.charSheet)); this.player.saveStatus = '已保存 ' + new Date().toLocaleTimeString(); setTimeout(() => this.player.saveStatus = '', 2000); },
-                addItem(module) { if (!module.data) { module.data = []; } module.data.push({ id: this.generateId('item'), name: '', quantity: 1, notes: '' }); this.saveCharSheet(); },
-                removeItem(module, index) { module.data.splice(index, 1); this.saveCharSheet(); },
+                toggleItemDropdown(index) { this.player.activeItemDropdown = this.player.activeItemDropdown === index ? null : index; },
+                selectItem(item, itemName) { item.name = itemName; this.player.activeItemDropdown = null; this.saveCharSheet(); },
                 findTemplateModule(playerModule) { return this.db.characterSheetTemplate.modules.find(mod => mod.id === playerModule.id) || {}; },
                 getComputedValue(module) { try { const formulaSrc = this.findTemplateModule(module).formula || 'return "NO FORMULA"'; const calculate = new Function('sheet', formulaSrc); return calculate(this.player.charSheet); } catch (e) { console.error("计算错误:", e); return "#错误!"; } },
                 getSkillModification(skillName) {
@@ -493,7 +559,31 @@ return Math.floor((str - 10) / 2);</code></pre>
                     this.dm.categoryDropdownVisible = false;
                     this.dm.activeModificationDropdown = null;
                     this.dm.addModuleDropdownVisible = false;
-                }
+                    this.player.activeItemDropdown = null;
+                    this.dm.addItemDropdownVisible = false;
+                    this.dm.dmMenuVisible = false;
+                },
+                toggleDmMenu() { this.dm.dmMenuVisible = !this.dm.dmMenuVisible; },
+                selectManagedPlayer(player) {
+                    this.syncPlayerSheetWithTemplate(player.uid);
+                    this.dm.managedPlayerId = player.uid;
+                },
+                saveManagedPlayerSheet() {
+                    if (!this.dm.managedPlayerId) return;
+                    this.db.character_sheets[this.dm.managedPlayerId] = JSON.parse(JSON.stringify(this.managedPlayerSheet));
+                    this.showGlobalMessage(`${this.managedPlayer.email} 的背包已更新!`, 'success');
+                },
+                toggleAddItemDropdown() { this.dm.addItemDropdownVisible = !this.dm.addItemDropdownVisible; },
+                addItemToManaged(module, itemName) {
+                    if (!module.data) { module.data = []; }
+                    module.data.push({ id: this.generateId('item'), name: itemName, quantity: 1, notes: '' });
+                    this.saveManagedPlayerSheet();
+                    this.dm.addItemDropdownVisible = false;
+                },
+                removeItemFromManaged(module, index) {
+                    module.data.splice(index, 1);
+                    this.saveManagedPlayerSheet();
+                },
             },
             mounted() {
                 this.resetStateAndDb();
