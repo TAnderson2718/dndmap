@@ -261,8 +261,11 @@
                             </div>
                             <div v-if="module.type === 'skill-selection-list'" class="space-y-2">
                                 <p class="text-sm text-gray-600">预设技能池:</p>
-                                <div v-for="(skill, skillIndex) in module.availableSkills" :key="skillIndex" class="flex items-center">
-                                    <input v-model="module.availableSkills[skillIndex]" @blur="saveTemplate" class="w-full px-3 py-1 border rounded-md text-sm">
+                                <div v-for="(skill, skillIndex) in module.availableSkills" :key="skillIndex" class="grid grid-cols-3 gap-2 items-center">
+                                    <input v-model="skill.name" @blur="saveTemplate" class="w-full px-3 py-1 border rounded-md text-sm col-span-2">
+                                    <select v-model="skill.attribute" @change="saveTemplate" class="w-full px-3 py-1 border rounded-md text-sm">
+                                        <option v-for="attr in templateAttributeKeys" :key="attr" :value="attr">{{ attr }}</option>
+                                    </select>
                                     <button @click="removeSkillFromTemplate(module, skillIndex)" class="ml-2 text-gray-400 hover:text-red-500">
                                         <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
                                     </button>
@@ -312,12 +315,38 @@ return Math.floor((str - 10) / 2);</code></pre>
                                 <div v-for="module in managedPlayerSheet.modules" :key="module.id">
                                     <div v-if="module.type === 'basic-info'" class="border-b pb-6 mb-6">
                                         <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
-                                        <div class="space-y-4">
-                                            <input v-model="module.data.name" @blur="saveManagedPlayerSheet" placeholder="角色名" class="w-full px-3 py-2 border rounded-md">
-                                            <input v-model="module.data.raceClass" @blur="saveManagedPlayerSheet" placeholder="种族与职业" class="w-full px-3 py-2 border rounded-md">
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label class="text-sm font-medium text-gray-700">角色名</label>
+                                                <input v-model="module.data.name" @blur="saveManagedPlayerSheet" class="w-full px-3 py-2 border rounded-md mt-1">
+                                            </div>
+                                            <div>
+                                                <label class="text-sm font-medium text-gray-700">种族与职业</label>
+                                                <input v-model="module.data.raceClass" @blur="saveManagedPlayerSheet" class="w-full px-3 py-2 border rounded-md mt-1">
+                                            </div>
+                                            <div>
+                                                <label class="text-sm font-medium text-gray-700">等级</label>
+                                                <input v-model.number="module.data.level" @blur="saveManagedPlayerSheet" type="number" class="w-full px-3 py-2 border rounded-md mt-1">
+                                            </div>
+                                            <div>
+                                                <label class="text-sm font-medium text-gray-700">熟练加值</label>
+                                                <input v-model.number="module.data.proficiencyBonus" @blur="saveManagedPlayerSheet" type="number" class="w-full px-3 py-2 border rounded-md mt-1">
+                                            </div>
                                         </div>
                                     </div>
-                                    <div v-if="module.type === 'key-value-list'" class="border-b pb-6 mb-6">
+                                    <div v-if="module.type === 'key-value-list' && module.title === '属性'" class="border-b pb-6 mb-6">
+                                        <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
+                                        <div class="space-y-3">
+                                            <div v-for="key in findTemplateModule(module).keys" :key="key" class="grid grid-cols-3 items-center gap-4">
+                                                <label class="font-medium text-sm text-gray-700 col-span-1">{{ key }}</label>
+                                                <input v-model="module.data[key]" @blur="saveManagedPlayerSheet" placeholder="-" class="col-span-1 px-3 py-2 border rounded-md text-center">
+                                                <div class="col-span-1 p-2 bg-gray-100 rounded-md text-center">
+                                                    <span class="font-bold text-indigo-600">{{ calculateModifier(module.data[key]) }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else-if="module.type === 'key-value-list'" class="border-b pb-6 mb-6">
                                         <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
                                         <div class="space-y-2">
                                             <div v-for="key in findTemplateModule(module).keys" :key="key" class="grid grid-cols-3 items-center gap-2">
@@ -328,11 +357,17 @@ return Math.floor((str - 10) / 2);</code></pre>
                                     </div>
                                     <div v-if="module.type === 'skill-selection-list'" class="border-b pb-6 mb-6">
                                         <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
-                                        <div class="space-y-2">
-                                            <label v-for="skillName in findTemplateModule(module).availableSkills" :key="skillName" class="flex items-center p-2 rounded-md hover:bg-gray-50">
-                                                <input type="checkbox" v-model="module.data[skillName]" @change="saveManagedPlayerSheet" class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                                <span class="ml-3 font-medium text-sm text-gray-800">{{ skillName }}</span>
-                                            </label>
+                                        <div class="space-y-3">
+                                            <div v-for="skill in findTemplateModule(module).availableSkills" :key="skill.name" class="grid grid-cols-5 items-center gap-2">
+                                                <label class="flex items-center col-span-3 cursor-pointer">
+                                                    <input type="checkbox" v-model="module.data[skill.name]" @change="saveManagedPlayerSheet" class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                                    <span class="ml-3 font-medium text-sm text-gray-800">{{ skill.name }}</span>
+                                                    <span class="ml-2 text-xs text-gray-400">({{ skill.attribute }})</span>
+                                                </label>
+                                                <div class="col-span-2 p-2 bg-gray-100 rounded-md text-center">
+                                                    <span class="font-bold text-indigo-600 text-lg">{{ getSkillBonus(skill.name, managedPlayerSheet) }}</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                     <div v-if="module.type === 'item-list'" class="border-b pb-6 mb-6">
@@ -380,12 +415,27 @@ return Math.floor((str - 10) / 2);</code></pre>
                             <div v-for="module in player.charSheet.modules" :key="module.id" @click.stop>
                                 <div v-if="module.type === 'basic-info'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
-                                    <div class="space-y-2">
-                                        <p><span class="font-medium text-gray-600">角色名: </span>{{ module.data.name || '-' }}</p>
-                                        <p><span class="font-medium text-gray-600">种族与职业: </span>{{ module.data.raceClass || '-' }}</p>
+                                    <div class="grid grid-cols-2 gap-y-2">
+                                        <span class="font-medium text-gray-600">角色名:</span><span>{{ module.data.name || '-' }}</span>
+                                        <span class="font-medium text-gray-600">种族与职业:</span><span>{{ module.data.raceClass || '-' }}</span>
+                                        <span class="font-medium text-gray-600">等级:</span><span>{{ module.data.level || '1' }}</span>
+                                        <span class="font-medium text-gray-600">熟练加值:</span><span class="font-bold text-indigo-600">+{{ module.data.proficiencyBonus || '2' }}</span>
                                     </div>
                                 </div>
-                                <div v-if="module.type === 'key-value-list'" class="border-b pb-6 mb-6">
+                                <div v-if="module.type === 'key-value-list' && module.title === '属性'" class="border-b pb-6 mb-6">
+                                    <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
+                                    <div class="space-y-2">
+                                        <div v-for="key in findTemplateModule(module).keys" :key="key" class="grid grid-cols-5 items-center gap-2 p-2 border-l-4 rounded" :class="getSkillModification(key) ? 'border-yellow-400 bg-yellow-50' : 'border-transparent'">
+                                            <span class="font-medium text-sm text-gray-700 col-span-2">{{ key }}</span>
+                                            <span class="font-bold text-gray-900 text-center col-span-1">{{ module.data[key] || '-' }}</span>
+                                            <div class="col-span-2 p-2 bg-gray-100 rounded-md text-center">
+                                                <span class="font-bold text-indigo-600 text-lg">{{ calculateModifier(module.data[key]) }}</span>
+                                            </div>
+                                        </div>
+                                        <p v-if="!findTemplateModule(module).keys || findTemplateModule(module).keys.length === 0" class="text-sm text-gray-400 text-center">DM尚未设定此模块的栏位</p>
+                                    </div>
+                                </div>
+                                <div v-else-if="module.type === 'key-value-list'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
                                     <div class="space-y-2">
                                         <div v-for="key in findTemplateModule(module).keys" :key="key" class="p-2 border-l-4 rounded" :class="getSkillModification(key) ? 'border-yellow-400 bg-yellow-50' : 'border-transparent'">
@@ -402,13 +452,18 @@ return Math.floor((str - 10) / 2);</code></pre>
                                 </div>
                                 <div v-if="module.type === 'skill-selection-list'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
-                                    <div class="space-y-2">
-                                        <label v-for="skillName in findTemplateModule(module).availableSkills" :key="skillName" class="flex items-center p-2 rounded-md hover:bg-gray-50">
-                                            <svg v-if="module.data[skillName]" class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
-                                            <svg v-else class="w-5 h-5 text-gray-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
-                                            <span class="ml-3 font-medium text-sm text-gray-800">{{ skillName }}</span>
-                                        </label>
-                                        <p v-if="!findTemplateModule(module).availableSkills || findTemplateModule(module).availableSkills.length === 0" class="text-sm text-gray-400 text-center">DM尚未设定此模块的技能</p>
+                                    <div class="space-y-3">
+                                        <div v-for="skill in findTemplateModule(module).availableSkills" :key="skill.name" class="grid grid-cols-5 items-center gap-2">
+                                            <div class="flex items-center col-span-3">
+                                                <svg v-if="module.data[skill.name]" class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
+                                                <svg v-else class="w-5 h-5 text-gray-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+                                                <span class="ml-3 font-medium text-sm text-gray-800">{{ skill.name }}</span>
+                                                <span class="ml-2 text-xs text-gray-400">({{ skill.attribute }})</span>
+                                            </div>
+                                            <div class="col-span-2 p-2 bg-gray-100 rounded-md text-center">
+                                                <span class="font-bold text-indigo-600 text-lg">{{ getSkillBonus(skill.name, player.charSheet) }}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div v-if="module.type === 'item-list'" class="border-b pb-6 mb-6">
@@ -471,13 +526,21 @@ return Math.floor((str - 10) / 2);</code></pre>
             users: [ { uid: 'user-001', email: 'admin@test.com', password: 'password123', roles: ['admin'] }, { uid: 'user-002', email: 'dm@test.com', password: 'password123', roles: ['dm', 'player'] }, { uid: 'user-003', email: 'player@test.com', password: 'password123', roles: ['player'] } ],
             presetCategories: ['NPC', '地点', '任务', '物品', '背景', '组织', '历史', '技能'],
             entries: [ { id: 'entry-1', authorId: 'user-002', title: '临冬城', type: '地点', content: '北境的古老首都，史塔克家族的城堡。', tags: ['地点', '北境', '史塔克'] }, { id: 'entry-2', authorId: 'user-002', title: 'NPC: 铁匠巴隆', type: 'NPC', content: '一位脾气古怪但技艺高超的铁匠。', tags: ['NPC', '工匠'] }, { id: 'skill-fireball', authorId: 'user-002', title: '火焰箭', type: '技能', content: '造成1d6火焰伤害。', tags: ['法术', '塑能'] }, { id: 'item-firering', authorId: 'user-002', title: '炎之指环', type: '物品', content: '一枚刻有火焰符文的红宝石戒指。', tags: ['魔法物品', '戒指'], modifications: [{ targetSkillName: '火焰箭', newDescription: '伤害提升至2d6。', priority: 10 }] } ],
-            characterSheetModuleTemplates: [ { type: 'basic-info', name: '基本信息', defaultData: { name: '', raceClass: '' } }, { type: 'key-value-list', name: '属性列表', defaultData: {} }, { type: 'item-list', name: '物品清单', defaultData: [] }, { type: 'long-text', name: '文本笔记', defaultData: { text: '' } }, { type: 'computed-field', name: '自动计算栏位', defaultData: { formula: 'return 0;' } }, { type: 'skill-selection-list', name: '技能选择列表', defaultData: {} } ],
+            characterSheetModuleTemplates: [ { type: 'basic-info', name: '基本信息', defaultData: { name: '', raceClass: '', level: 1, proficiencyBonus: 2 } }, { type: 'key-value-list', name: '属性列表', defaultData: {} }, { type: 'item-list', name: '物品清单', defaultData: [] }, { type: 'long-text', name: '文本笔记', defaultData: { text: '' } }, { type: 'computed-field', name: '自动计算栏位', defaultData: { formula: 'return 0;' } }, { type: 'skill-selection-list', name: '技能选择列表', defaultData: {} } ],
             characterSheetTemplate: {
                 modules: [
                     { id: 'mod-1', title: '基本信息', type: 'basic-info' },
                     { id: 'mod-2', title: '属性', type: 'key-value-list', keys: ['力量', '敏捷', '体质', '智力', '感知', '魅力'] },
-                    { id: 'mod-5', title: '力量调整值', type: 'computed-field', formula: "const statsModule = sheet.modules.find(m => m.title === '属性');\nif (!statsModule || !statsModule.data) return 0;\nconst str = parseInt(statsModule.data['力量']) || 0;\nconst mod = Math.floor((str - 10) / 2);\nreturn mod > 0 ? '+' + mod : mod;" },
-                    { id: 'mod-6', title: '技能熟练项', type: 'skill-selection-list', availableSkills: ['体操', '运动', '游说', '威吓', '隐匿', '察觉'] },
+                    { id: 'mod-6', title: '技能熟练项', type: 'skill-selection-list', 
+                      availableSkills: [
+                        { name: '体操', attribute: '敏捷' },
+                        { name: '运动', attribute: '力量' },
+                        { name: '游说', attribute: '魅力' },
+                        { name: '威吓', attribute: '魅力' },
+                        { name: '隐匿', attribute: '敏捷' },
+                        { name: '察觉', attribute: '感知' }
+                      ] 
+                    },
                     { id: 'mod-7', title: '法术与戏法', type: 'key-value-list', keys: ['火焰箭', '法师之手'] },
                     { id: 'mod-3', title: '物品与装备', type: 'item-list' },
                     { id: 'mod-4', title: '背景与笔记', type: 'long-text' }
@@ -489,10 +552,25 @@ return Math.floor((str - 10) / 2);</code></pre>
         
         const App = {
             data() {
-                return { authMode: 'login', credentials: { email: '', password: '' }, authError: '', user: { loggedIn: false, uid: null, email: null, roles: [], permissions: new Set() }, globalMessage: null, activeTab: '', admin: {}, dm: {}, player: {}, db: {} }
+                return { 
+                    authMode: 'login', 
+                    credentials: { email: '', password: '' }, 
+                    authError: '', 
+                    user: { loggedIn: false, uid: null, email: null, roles: [], permissions: new Set() }, 
+                    globalMessage: null, 
+                    activeTab: '', 
+                    admin: {}, 
+                    dm: {}, 
+                    player: {}, 
+                    db: {}
+                }
             },
             
             computed: {
+                templateAttributeKeys() {
+                    const attributesModule = this.dm.charSheetTemplate.modules.find(m => m.title === '属性');
+                    return attributesModule ? attributesModule.keys : [];
+                },
                 availableSkills() {
                     let skills = [];
                     if (this.dm.charSheetTemplate && this.dm.charSheetTemplate.modules) {
@@ -500,7 +578,7 @@ return Math.floor((str - 10) / 2);</code></pre>
                             if (module.type === 'key-value-list' && module.keys) {
                                 skills = skills.concat(module.keys);
                             } else if (module.type === 'skill-selection-list' && module.availableSkills) {
-                                skills = skills.concat(module.availableSkills);
+                                skills = skills.concat(module.availableSkills.map(s => s.name));
                             }
                         });
                     }
@@ -521,6 +599,38 @@ return Math.floor((str - 10) / 2);</code></pre>
                 }
             },
             methods: {
+                calculateModifier(value) {
+                    const num = parseInt(value);
+                    if (isNaN(num)) {
+                        return '+0';
+                    }
+                    const mod = Math.floor((num - 10) / 2);
+                    return mod >= 0 ? '+' + mod : mod.toString();
+                },
+                getSkillAttribute(skillName) {
+                    const skillListModule = this.db.characterSheetTemplate.modules.find(m => m.title === '技能熟练项');
+                    if (!skillListModule) return '未知';
+                    const skill = skillListModule.availableSkills.find(s => s.name === skillName);
+                    return skill ? skill.attribute : '未知';
+                },
+                getSkillBonus(skillName, sheet) {
+                    if (!sheet) return '+0';
+                    
+                    const skillModule = sheet.modules.find(m => m.title === '技能熟练项');
+                    const isProficient = skillModule?.data[skillName];
+
+                    const infoModule = sheet.modules.find(m => m.title === '基本信息');
+                    const proficiencyBonus = isProficient ? (parseInt(infoModule?.data.proficiencyBonus) || 0) : 0;
+
+                    const attributeName = this.getSkillAttribute(skillName);
+                    const statsModule = sheet.modules.find(m => m.title === '属性');
+                    const attributeValue = statsModule?.data[attributeName];
+                    const attributeModifier = parseInt(this.calculateModifier(attributeValue).replace('+', '')) || 0;
+                    
+                    const totalBonus = attributeModifier + proficiencyBonus;
+                    
+                    return totalBonus >= 0 ? '+' + totalBonus : totalBonus.toString();
+                },
                 showGlobalMessage(text, type = 'success', duration = 3000) { this.globalMessage = { text, type }; setTimeout(() => { this.globalMessage = null; }, duration); },
                 renderMarkdown(md) { if(!md) return ''; return new showdown.Converter().makeHtml(md); },
                 generateId(prefix = 'id') { return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; },
@@ -559,13 +669,13 @@ return Math.floor((str - 10) / 2);</code></pre>
                 removeModuleFromTemplate(index) { this.dm.charSheetTemplate.modules.splice(index, 1); this.saveTemplate(); },
                 addKeyToTemplate(module) { if (!module.keys) { module.keys = []; } module.keys.push('新属性'); this.saveTemplate(); },
                 removeKeyFromTemplate(module, keyIndex) { module.keys.splice(keyIndex, 1); this.saveTemplate(); },
-                addSkillToTemplate(module) { if (!module.availableSkills) { module.availableSkills = []; } module.availableSkills.push('新技能'); this.saveTemplate(); },
+                addSkillToTemplate(module) { if (!module.availableSkills) { module.availableSkills = []; } module.availableSkills.push({ name: '新技能', attribute: this.templateAttributeKeys[0] || '力量' }); this.saveTemplate(); },
                 removeSkillFromTemplate(module, skillIndex) { module.availableSkills.splice(skillIndex, 1); this.saveTemplate(); },
-                saveCharSheet() { this.db.character_sheets[this.user.uid] = JSON.parse(JSON.stringify(this.player.charSheet)); this.player.saveStatus = '已保存 ' + new Date().toLocaleTimeString(); setTimeout(() => this.player.saveStatus = '', 2000); },
+                saveCharSheet() { this.db.character_sheets[this.user.uid] = JSON.parse(JSON.stringify(this.player.charSheet)); this.showGlobalMessage("角色卡已保存!", "success"); },
                 toggleItemDropdown(index) { this.player.activeItemDropdown = this.player.activeItemDropdown === index ? null : index; },
                 selectItem(item, itemName) { item.name = itemName; this.player.activeItemDropdown = null; this.saveCharSheet(); },
                 findTemplateModule(playerModule) { return this.db.characterSheetTemplate.modules.find(mod => mod.id === playerModule.id) || {}; },
-                getComputedValue(module) { try { const formulaSrc = this.findTemplateModule(module).formula || 'return "NO FORMULA"'; const calculate = new Function('sheet', formulaSrc); return calculate(this.player.charSheet); } catch (e) { console.error("计算错误:", e); return "#错误!"; } },
+                getComputedValue(module) { try { const formulaSrc = this.findTemplateModule(module).formula || 'return "NO FORMULA"'; const calculate = new Function('sheet', formulaSrc); return calculate(this.player.charSheet); } catch (e) { console.error("计算错误:", e); return "#计算错误!"; } },
                 getSkillModification(skillName) {
                     const inventoryModule = this.player.charSheet.modules.find(m => m.type === 'item-list');
                     if (!inventoryModule || !inventoryModule.data) return null;
