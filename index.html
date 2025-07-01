@@ -36,7 +36,7 @@
         </div>
 
         <!-- 全局消息提示 -->
-        <div v-if="globalMessage" :class="globalMessage.type === 'success' ? 'bg-green-500' : 'bg-red-500'" class="fixed top-10 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg text-white text-center z-40">
+        <div v-if="globalMessage" :class="globalMessage.type === 'success' ? 'bg-green-500' : 'bg-red-500'" class="fixed top-10 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg text-white text-center z-40 transition-all duration-300">
             {{ globalMessage.text }}
         </div>
         
@@ -48,6 +48,7 @@
                     <button @click="authMode = 'login'" :class="{ 'border-indigo-500 text-indigo-600': authMode === 'login' }" class="flex-1 py-2 font-semibold text-gray-500 border-b-2 focus:outline-none">登录</button>
                     <button @click="authMode = 'register'" :class="{ 'border-indigo-500 text-indigo-600': authMode === 'register' }" class="flex-1 py-2 font-semibold text-gray-500 border-b-2 focus:outline-none">注册</button>
                 </div>
+                <!-- 登录表单 -->
                 <div v-if="authMode === 'login'" class="space-y-4">
                     <input v-model="credentials.email" @keyup.enter="login" type="email" placeholder="邮箱" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <input v-model="credentials.password" @keyup.enter="login" type="password" placeholder="密码" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -61,6 +62,7 @@
                         </div>
                     </div>
                 </div>
+                <!-- 注册表单 -->
                 <div v-if="authMode === 'register'" class="space-y-4">
                     <input v-model="credentials.email" @keyup.enter="register" type="email" placeholder="邮箱" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <input v-model="credentials.password" @keyup.enter="register" type="password" placeholder="密码" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -81,10 +83,10 @@
                 <button @click="logout" class="px-4 py-2 font-semibold text-white bg-red-500 rounded-md hover:bg-red-600">退出</button>
             </header>
 
+            <!-- 主导航标签 -->
             <div class="mb-6 border-b border-gray-200">
                 <nav class="flex space-x-4 -mb-px">
                     <button v-if="hasPermission('view_admin_panel')" @click.stop="activeTab = 'admin'" :class="{ 'active': activeTab === 'admin' }" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">后台管理</button>
-                    <!-- ** 更新 ** 交互方式优化 -->
                     <div v-if="hasPermission('create_entries')" class="relative" @click.stop>
                          <button @click="toggleDmMenu" :class="{ 'active': activeTab.startsWith('dm-') }" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">DM 工作台</button>
                         <div v-if="dm.dmMenuVisible" class="absolute top-full left-0 mt-1 bg-white rounded-md shadow-lg py-1 z-20">
@@ -305,35 +307,66 @@ return Math.floor((str - 10) / 2);</code></pre>
                              </div>
                         </div>
                         <div v-if="managedPlayerSheet" class="md:col-span-2 p-6 bg-white rounded-lg shadow" @click.stop>
-                            <h3 class="font-semibold text-lg mb-4">正在编辑 {{ managedPlayer.email }} 的背包</h3>
-                            <div v-for="module in managedPlayerSheet.modules" :key="module.id">
-                                <div v-if="module.type === 'item-list'" class="space-y-6">
-                                    <h4 class="font-medium">{{ module.title }}</h4>
-                                    <div class="space-y-3">
-                                        <div v-for="(item, index) in module.data" :key="item.id" class="p-3 border rounded-md space-y-2">
-                                            <div class="flex items-center space-x-2">
-                                                <span class="flex-1 font-medium">{{ item.name }}</span>
-                                                <input v-model.number="item.quantity" @blur="saveManagedPlayerSheet" type="number" placeholder="数量" class="w-20 px-3 py-2 border rounded-md">
-                                                <button @click="removeItemFromManaged(module, index)" class="text-red-500 hover:text-red-700 p-2 rounded-full bg-red-100 hover:bg-red-200">
-                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                                </button>
-                                            </div>
-                                            <textarea v-model="item.notes" @blur="saveManagedPlayerSheet" placeholder="备注或描述" rows="1" class="w-full text-sm px-3 py-1 border rounded-md"></textarea>
+                            <h3 class="font-semibold text-lg mb-4">正在编辑 {{ managedPlayer.email }} 的角色卡</h3>
+                            <div class="space-y-6">
+                                <div v-for="module in managedPlayerSheet.modules" :key="module.id">
+                                    <div v-if="module.type === 'basic-info'" class="border-b pb-6 mb-6">
+                                        <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
+                                        <div class="space-y-4">
+                                            <input v-model="module.data.name" @blur="saveManagedPlayerSheet" placeholder="角色名" class="w-full px-3 py-2 border rounded-md">
+                                            <input v-model="module.data.raceClass" @blur="saveManagedPlayerSheet" placeholder="种族与职业" class="w-full px-3 py-2 border rounded-md">
                                         </div>
                                     </div>
-                                    <div class="relative">
-                                        <button @click="toggleAddItemDropdown" class="w-full text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-md">给玩家添加物品</button>
-                                        <ul v-if="dm.addItemDropdownVisible" class="absolute bottom-full mb-2 z-20 w-full bg-white border rounded-md mt-1 max-h-48 overflow-y-auto shadow-lg">
-                                            <li v-for="entry in availableItems" :key="entry.id" @click="addItemToManaged(module, entry.title)" class="px-3 py-2 cursor-pointer hover:bg-gray-100">
-                                                {{ entry.title }}
-                                            </li>
-                                        </ul>
+                                    <div v-if="module.type === 'key-value-list'" class="border-b pb-6 mb-6">
+                                        <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
+                                        <div class="space-y-2">
+                                            <div v-for="key in findTemplateModule(module).keys" :key="key" class="grid grid-cols-3 items-center gap-2">
+                                                <label class="font-medium text-sm text-gray-700 col-span-1">{{ key }}</label>
+                                                <input v-model="module.data[key]" @blur="saveManagedPlayerSheet" placeholder="-" class="col-span-2 px-3 py-2 border rounded-md">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="module.type === 'skill-selection-list'" class="border-b pb-6 mb-6">
+                                        <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
+                                        <div class="space-y-2">
+                                            <label v-for="skillName in findTemplateModule(module).availableSkills" :key="skillName" class="flex items-center p-2 rounded-md hover:bg-gray-50">
+                                                <input type="checkbox" v-model="module.data[skillName]" @change="saveManagedPlayerSheet" class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                                <span class="ml-3 font-medium text-sm text-gray-800">{{ skillName }}</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div v-if="module.type === 'item-list'" class="border-b pb-6 mb-6">
+                                        <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
+                                        <div class="space-y-3">
+                                            <div v-for="(item, index) in module.data" :key="item.id" class="p-3 border rounded-md space-y-2">
+                                                <div class="flex items-center space-x-2">
+                                                    <span class="flex-1 font-medium">{{ item.name }}</span>
+                                                    <input v-model.number="item.quantity" @blur="saveManagedPlayerSheet" type="number" placeholder="数量" class="w-20 px-3 py-2 border rounded-md">
+                                                    <button @click="removeItemFromManaged(module, index)" class="text-red-500 hover:text-red-700 p-2 rounded-full bg-red-100 hover:bg-red-200">
+                                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                    </button>
+                                                </div>
+                                                <textarea v-model="item.notes" @blur="saveManagedPlayerSheet" placeholder="备注或描述" rows="1" class="w-full text-sm px-3 py-1 border rounded-md"></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="relative">
+                                            <button @click="toggleAddItemDropdown" class="w-full text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-md">给玩家添加物品</button>
+                                            <ul v-if="dm.addItemDropdownVisible" class="absolute bottom-full mb-2 z-20 w-full bg-white border rounded-md mt-1 max-h-48 overflow-y-auto shadow-lg">
+                                                <li v-for="entry in availableItems" :key="entry.id" @click="addItemToManaged(module, entry.title)" class="px-3 py-2 cursor-pointer hover:bg-gray-100">
+                                                    {{ entry.title }}
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div v-if="module.type === 'long-text'" class="border-b pb-6 mb-6">
+                                        <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
+                                        <textarea v-model="module.data.text" @blur="saveManagedPlayerSheet" rows="8" placeholder="..." class="w-full px-3 py-2 border rounded-md"></textarea>
                                     </div>
                                 </div>
                             </div>
                         </div>
                          <div v-else class="md:col-span-2 flex items-center justify-center p-6 bg-white rounded-lg shadow">
-                            <p class="text-gray-500">请从左侧选择一个玩家以编辑其背包。</p>
+                            <p class="text-gray-500">请从左侧选择一个玩家进行编辑。</p>
                         </div>
                     </div>
                 </div>
@@ -347,18 +380,18 @@ return Math.floor((str - 10) / 2);</code></pre>
                             <div v-for="module in player.charSheet.modules" :key="module.id" @click.stop>
                                 <div v-if="module.type === 'basic-info'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
-                                    <div class="space-y-4">
-                                        <input v-model="module.data.name" @blur="saveCharSheet" placeholder="角色名" class="w-full px-3 py-2 border rounded-md">
-                                        <input v-model="module.data.raceClass" @blur="saveCharSheet" placeholder="种族与职业" class="w-full px-3 py-2 border rounded-md">
+                                    <div class="space-y-2">
+                                        <p><span class="font-medium text-gray-600">角色名: </span>{{ module.data.name || '-' }}</p>
+                                        <p><span class="font-medium text-gray-600">种族与职业: </span>{{ module.data.raceClass || '-' }}</p>
                                     </div>
                                 </div>
                                 <div v-if="module.type === 'key-value-list'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
                                     <div class="space-y-2">
                                         <div v-for="key in findTemplateModule(module).keys" :key="key" class="p-2 border-l-4 rounded" :class="getSkillModification(key) ? 'border-yellow-400 bg-yellow-50' : 'border-transparent'">
-                                            <div class="grid grid-cols-3 items-center gap-2">
-                                                <label class="font-medium text-sm text-gray-700 col-span-1">{{ key }}</label>
-                                                <input v-model="module.data[key]" @blur="saveCharSheet" placeholder="-" class="col-span-2 px-3 py-2 border rounded-md">
+                                            <div class="flex justify-between items-center">
+                                                <span class="font-medium text-sm text-gray-700">{{ key }}</span>
+                                                <span class="font-bold text-gray-900">{{ module.data[key] || '-' }}</span>
                                             </div>
                                             <div v-if="getSkillModification(key)" class="mt-2 text-xs p-2 rounded-md bg-yellow-100 text-yellow-800">
                                                 <p><span class="font-bold">{{ getSkillModification(key).sourceItem }}</span> 效果: {{ getSkillModification(key).description }}</p>
@@ -371,7 +404,8 @@ return Math.floor((str - 10) / 2);</code></pre>
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
                                     <div class="space-y-2">
                                         <label v-for="skillName in findTemplateModule(module).availableSkills" :key="skillName" class="flex items-center p-2 rounded-md hover:bg-gray-50">
-                                            <input type="checkbox" v-model="module.data[skillName]" @change="saveCharSheet" class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                            <svg v-if="module.data[skillName]" class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
+                                            <svg v-else class="w-5 h-5 text-gray-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
                                             <span class="ml-3 font-medium text-sm text-gray-800">{{ skillName }}</span>
                                         </label>
                                         <p v-if="!findTemplateModule(module).availableSkills || findTemplateModule(module).availableSkills.length === 0" class="text-sm text-gray-400 text-center">DM尚未设定此模块的技能</p>
@@ -392,7 +426,7 @@ return Math.floor((str - 10) / 2);</code></pre>
                                 </div>
                                 <div v-if="module.type === 'long-text'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
-                                    <textarea v-model="module.data.text" @blur="saveCharSheet" rows="8" placeholder="..." class="w-full px-3 py-2 border rounded-md"></textarea>
+                                    <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ module.data.text || '-' }}</p>
                                 </div>
                                 <div v-if="module.type === 'computed-field'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
@@ -401,7 +435,6 @@ return Math.floor((str - 10) / 2);</code></pre>
                                     </div>
                                 </div>
                             </div>
-                            <div v-if="player.saveStatus" class="text-sm text-center text-green-600">{{ player.saveStatus }}</div>
                         </div>
                         <div class="space-y-8">
                            <div class="p-6 bg-white rounded-lg shadow">
@@ -434,7 +467,7 @@ return Math.floor((str - 10) / 2);</code></pre>
         // --- 模拟数据库 ---
         const mockDatabase = {
             permissions: [ { id: 'view_admin_panel', description: '查看后台管理面板' }, { id: 'manage_roles_permissions', description: '管理角色和权限' }, { id: 'manage_users', description: '管理用户角色' }, { id: 'create_entries', description: '创建和编辑条目' }, { id: 'generate_access_codes', description: '打包条目生成访问码' }, { id: 'edit_own_char_sheet', description: '编辑自己的角色卡' }, { id: 'view_shared_content', description: '查看被分享的内容' }, ],
-            roles: [ { id: 'admin', name: 'admin', permissions: ['view_admin_panel', 'manage_roles_permissions', 'manage_users'] }, { id: 'dm', name: 'dm', permissions: ['create_entries', 'generate_access_codes', 'view_shared_content'] }, { id: 'player', name: 'player', permissions: ['edit_own_char_sheet', 'view_shared_content'] } ],
+            roles: [ { id: 'admin', name: 'admin', permissions: ['view_admin_panel', 'manage_roles_permissions', 'manage_users'] }, { id: 'dm', name: 'dm', permissions: ['create_entries', 'generate_access_codes', 'view_shared_content', 'edit_own_char_sheet'] }, { id: 'player', name: 'player', permissions: ['edit_own_char_sheet', 'view_shared_content'] } ],
             users: [ { uid: 'user-001', email: 'admin@test.com', password: 'password123', roles: ['admin'] }, { uid: 'user-002', email: 'dm@test.com', password: 'password123', roles: ['dm', 'player'] }, { uid: 'user-003', email: 'player@test.com', password: 'password123', roles: ['player'] } ],
             presetCategories: ['NPC', '地点', '任务', '物品', '背景', '组织', '历史', '技能'],
             entries: [ { id: 'entry-1', authorId: 'user-002', title: '临冬城', type: '地点', content: '北境的古老首都，史塔克家族的城堡。', tags: ['地点', '北境', '史塔克'] }, { id: 'entry-2', authorId: 'user-002', title: 'NPC: 铁匠巴隆', type: 'NPC', content: '一位脾气古怪但技艺高超的铁匠。', tags: ['NPC', '工匠'] }, { id: 'skill-fireball', authorId: 'user-002', title: '火焰箭', type: '技能', content: '造成1d6火焰伤害。', tags: ['法术', '塑能'] }, { id: 'item-firering', authorId: 'user-002', title: '炎之指环', type: '物品', content: '一枚刻有火焰符文的红宝石戒指。', tags: ['魔法物品', '戒指'], modifications: [{ targetSkillName: '火焰箭', newDescription: '伤害提升至2d6。', priority: 10 }] } ],
@@ -444,7 +477,8 @@ return Math.floor((str - 10) / 2);</code></pre>
                     { id: 'mod-1', title: '基本信息', type: 'basic-info' },
                     { id: 'mod-2', title: '属性', type: 'key-value-list', keys: ['力量', '敏捷', '体质', '智力', '感知', '魅力'] },
                     { id: 'mod-5', title: '力量调整值', type: 'computed-field', formula: "const statsModule = sheet.modules.find(m => m.title === '属性');\nif (!statsModule || !statsModule.data) return 0;\nconst str = parseInt(statsModule.data['力量']) || 0;\nconst mod = Math.floor((str - 10) / 2);\nreturn mod > 0 ? '+' + mod : mod;" },
-                    { id: 'mod-6', title: '技能熟练项', type: 'skill-selection-list', availableSkills: ['奥秘', '运动', '游说', '威吓', '隐匿', '察觉'] },
+                    { id: 'mod-6', title: '技能熟练项', type: 'skill-selection-list', availableSkills: ['体操', '运动', '游说', '威吓', '隐匿', '察觉'] },
+                    { id: 'mod-7', title: '法术与戏法', type: 'key-value-list', keys: ['火焰箭', '法师之手'] },
                     { id: 'mod-3', title: '物品与装备', type: 'item-list' },
                     { id: 'mod-4', title: '背景与笔记', type: 'long-text' }
                 ]
@@ -521,7 +555,7 @@ return Math.floor((str - 10) / 2);</code></pre>
                 getModuleTypeName(type) { const template = this.dm.moduleTemplates.find(t => t.type === type); return template ? template.name : '未知模块'; },
                 saveTemplate() { this.db.characterSheetTemplate = JSON.parse(JSON.stringify(this.dm.charSheetTemplate)); this.showGlobalMessage("模板已保存!", "success");},
                 toggleAddModuleDropdown() { this.dm.addModuleDropdownVisible = !this.dm.addModuleDropdownVisible; },
-                addModuleToTemplate(template) { const newModule = { id: this.generateId('mod'), title: template.name, type: template.type, }; if (template.type === 'key-value-list' || template.type === 'skill-selection-list') { newModule.keys = []; newModule.availableSkills = []; } if (template.type === 'computed-field') { newModule.formula = 'return 0;'; } this.dm.charSheetTemplate.modules.push(newModule); this.dm.addModuleDropdownVisible = false; this.saveTemplate(); },
+                addModuleToTemplate(template) { const newModule = { id: this.generateId('mod'), title: template.name, type: template.type, }; if (template.type === 'key-value-list') { newModule.keys = []; } else if(template.type === 'skill-selection-list') { newModule.availableSkills = []; } if (template.type === 'computed-field') { newModule.formula = 'return 0;'; } this.dm.charSheetTemplate.modules.push(newModule); this.dm.addModuleDropdownVisible = false; this.saveTemplate(); },
                 removeModuleFromTemplate(index) { this.dm.charSheetTemplate.modules.splice(index, 1); this.saveTemplate(); },
                 addKeyToTemplate(module) { if (!module.keys) { module.keys = []; } module.keys.push('新属性'); this.saveTemplate(); },
                 removeKeyFromTemplate(module, keyIndex) { module.keys.splice(keyIndex, 1); this.saveTemplate(); },
@@ -571,7 +605,7 @@ return Math.floor((str - 10) / 2);</code></pre>
                 saveManagedPlayerSheet() {
                     if (!this.dm.managedPlayerId) return;
                     this.db.character_sheets[this.dm.managedPlayerId] = JSON.parse(JSON.stringify(this.managedPlayerSheet));
-                    this.showGlobalMessage(`${this.managedPlayer.email} 的背包已更新!`, 'success');
+                    this.showGlobalMessage(`${this.managedPlayer.email} 的角色卡已更新!`, 'success');
                 },
                 toggleAddItemDropdown() { this.dm.addItemDropdownVisible = !this.dm.addItemDropdownVisible; },
                 addItemToManaged(module, itemName) {
