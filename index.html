@@ -425,7 +425,7 @@ return Math.floor((str - 10) / 2);</code></pre>
                                 <div v-if="module.type === 'key-value-list' && module.title === '属性'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
                                     <div class="space-y-2">
-                                        <div v-for="key in findTemplateModule(module).keys" :key="key" class="grid grid-cols-5 items-center gap-2 p-2 border-l-4 rounded" :class="getSkillModification(key) ? 'border-yellow-400 bg-yellow-50' : 'border-transparent'">
+                                        <div v-for="key in findTemplateModule(module).keys" :key="key" class="grid grid-cols-5 items-center gap-2 p-2 border-l-4 rounded" :class="getSkillModifications(key).length > 0 ? 'border-yellow-400 bg-yellow-50' : 'border-transparent'">
                                             <span class="font-medium text-sm text-gray-700 col-span-2">{{ key }}</span>
                                             <span class="font-bold text-gray-900 text-center col-span-1">{{ module.data[key] || '-' }}</span>
                                             <div class="col-span-2 p-2 bg-gray-100 rounded-md text-center">
@@ -438,13 +438,15 @@ return Math.floor((str - 10) / 2);</code></pre>
                                 <div v-else-if="module.type === 'key-value-list'" class="border-b pb-6 mb-6">
                                     <h3 class="font-semibold text-lg mb-4">{{ module.title }}</h3>
                                     <div class="space-y-2">
-                                        <div v-for="key in findTemplateModule(module).keys" :key="key" class="p-2 border-l-4 rounded" :class="getSkillModification(key) ? 'border-yellow-400 bg-yellow-50' : 'border-transparent'">
+                                        <div v-for="key in findTemplateModule(module).keys" :key="key" class="p-2 border-l-4 rounded" :class="getSkillModifications(key).length > 0 ? 'border-yellow-400 bg-yellow-50' : 'border-transparent'">
                                             <div class="flex justify-between items-center">
                                                 <span class="font-medium text-sm text-gray-700">{{ key }}</span>
                                                 <span class="font-bold text-gray-900">{{ module.data[key] || '-' }}</span>
                                             </div>
-                                            <div v-if="getSkillModification(key)" class="mt-2 text-xs p-2 rounded-md bg-yellow-100 text-yellow-800">
-                                                <p><span class="font-bold">{{ getSkillModification(key).sourceItem }}</span> 效果: {{ getSkillModification(key).description }}</p>
+                                            <div v-if="getSkillModifications(key).length > 0" class="mt-2 text-xs p-2 rounded-md bg-yellow-100 text-yellow-800 space-y-1">
+                                                <p v-for="mod in getSkillModifications(key)" :key="mod.sourceItem + mod.newDescription">
+                                                    <span class="font-bold">{{ mod.sourceItem }}</span> 效果: {{ mod.newDescription }}
+                                                </p>
                                             </div>
                                         </div>
                                         <p v-if="!findTemplateModule(module).keys || findTemplateModule(module).keys.length === 0" class="text-sm text-gray-400 text-center">DM尚未设定此模块的栏位</p>
@@ -525,7 +527,13 @@ return Math.floor((str - 10) / 2);</code></pre>
             roles: [ { id: 'admin', name: 'admin', permissions: ['view_admin_panel', 'manage_roles_permissions', 'manage_users'] }, { id: 'dm', name: 'dm', permissions: ['create_entries', 'generate_access_codes', 'view_shared_content', 'edit_own_char_sheet'] }, { id: 'player', name: 'player', permissions: ['edit_own_char_sheet', 'view_shared_content'] } ],
             users: [ { uid: 'user-001', email: 'admin@test.com', password: 'password123', roles: ['admin'] }, { uid: 'user-002', email: 'dm@test.com', password: 'password123', roles: ['dm', 'player'] }, { uid: 'user-003', email: 'player@test.com', password: 'password123', roles: ['player'] } ],
             presetCategories: ['NPC', '地点', '任务', '物品', '背景', '组织', '历史', '技能'],
-            entries: [ { id: 'entry-1', authorId: 'user-002', title: '临冬城', type: '地点', content: '北境的古老首都，史塔克家族的城堡。', tags: ['地点', '北境', '史塔克'] }, { id: 'entry-2', authorId: 'user-002', title: 'NPC: 铁匠巴隆', type: 'NPC', content: '一位脾气古怪但技艺高超的铁匠。', tags: ['NPC', '工匠'] }, { id: 'skill-fireball', authorId: 'user-002', title: '火焰箭', type: '技能', content: '造成1d6火焰伤害。', tags: ['法术', '塑能'] }, { id: 'item-firering', authorId: 'user-002', title: '炎之指环', type: '物品', content: '一枚刻有火焰符文的红宝石戒指。', tags: ['魔法物品', '戒指'], modifications: [{ targetSkillName: '火焰箭', newDescription: '伤害提升至2d6。', priority: 10 }] } ],
+            entries: [ 
+                { id: 'entry-1', authorId: 'user-002', title: '临冬城', type: '地点', content: '北境的古老首都，史塔克家族的城堡。', tags: ['地点', '北境', '史塔克'] }, 
+                { id: 'entry-2', authorId: 'user-002', title: 'NPC: 铁匠巴隆', type: 'NPC', content: '一位脾气古怪但技艺高超的铁匠。', tags: ['NPC', '工匠'] }, 
+                { id: 'skill-fireball', authorId: 'user-002', title: '火焰箭', type: '技能', content: '造成1d6火焰伤害。', tags: ['法术', '塑能'] }, 
+                { id: 'item-firering', authorId: 'user-002', title: '炎之指环', type: '物品', content: '一枚刻有火焰符文的红宝石戒指。', tags: ['魔法物品', '戒指'], modifications: [{ targetSkillName: '火焰箭', newDescription: '伤害提升至2d6。', priority: 10 }] },
+                { id: 'item-snakering', authorId: 'user-002', title: '蛇信戒指', type: '物品', content: '这枚戒指可以让你施法时分叉。', tags: ['魔法物品', '戒指'], modifications: [{ targetSkillName: '火焰箭', newDescription: '火焰箭可以击中最多两个由你指定的目标。', priority: 5 }] }
+            ],
             characterSheetModuleTemplates: [ { type: 'basic-info', name: '基本信息', defaultData: { name: '', raceClass: '', level: 1, proficiencyBonus: 2 } }, { type: 'key-value-list', name: '属性列表', defaultData: {} }, { type: 'item-list', name: '物品清单', defaultData: [] }, { type: 'long-text', name: '文本笔记', defaultData: { text: '' } }, { type: 'computed-field', name: '自动计算栏位', defaultData: { formula: 'return 0;' } }, { type: 'skill-selection-list', name: '技能选择列表', defaultData: {} } ],
             characterSheetTemplate: {
                 modules: [
@@ -676,9 +684,9 @@ return Math.floor((str - 10) / 2);</code></pre>
                 selectItem(item, itemName) { item.name = itemName; this.player.activeItemDropdown = null; this.saveCharSheet(); },
                 findTemplateModule(playerModule) { return this.db.characterSheetTemplate.modules.find(mod => mod.id === playerModule.id) || {}; },
                 getComputedValue(module) { try { const formulaSrc = this.findTemplateModule(module).formula || 'return "NO FORMULA"'; const calculate = new Function('sheet', formulaSrc); return calculate(this.player.charSheet); } catch (e) { console.error("计算错误:", e); return "#计算错误!"; } },
-                getSkillModification(skillName) {
+                getSkillModifications(skillName) {
                     const inventoryModule = this.player.charSheet.modules.find(m => m.type === 'item-list');
-                    if (!inventoryModule || !inventoryModule.data) return null;
+                    if (!inventoryModule || !inventoryModule.data) return [];
 
                     const equippedItems = inventoryModule.data.map(item => this.db.entries.find(e => e.title === item.name && e.type === '物品')).filter(Boolean);
                     
@@ -693,10 +701,7 @@ return Math.floor((str - 10) / 2);</code></pre>
                         }
                     });
 
-                    if (modifications.length === 0) return null;
-                    
-                    modifications.sort((a, b) => b.priority - a.priority);
-                    return { description: modifications[0].newDescription, sourceItem: modifications[0].sourceItem };
+                    return modifications;
                 },
                 redeemAccessCode() { const code = this.player.accessCodeInput.trim(); if (!code) return; const pkg = this.db.shared_packages.find(p => p.accessCode === code); if (!pkg) { this.showGlobalMessage('无效的访问码', 'error'); return; } if (!pkg.authorizedUsers.includes(this.user.uid)) { pkg.authorizedUsers.push(this.user.uid); } this.showGlobalMessage('解锁成功!', 'success'); this.player.accessCodeInput = ''; this.loadUnlockedContent(); },
                 handleAppClick() {
